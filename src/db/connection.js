@@ -5,7 +5,7 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
   host: 'db.tqewvjwhbepuzwpptxer.supabase.co',
-  family: 4 // <-- Força IPv4
+  family: 4  // <-- Força o uso de IPv4
 });
 
 module.exports = pool;
