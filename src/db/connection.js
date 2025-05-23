@@ -1,8 +1,11 @@
 const { Pool } = require('pg');
-require('dotenv').config();
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  user: 'postgres.tqewvjwhbepuzwpptxer',
+  password: '#BIMarketplaces1',
+  host: 'aws-0-us-east-2.pooler.supabase.com',
+  port: 6543,
+  database: 'postgres',
   ssl: { rejectUnauthorized: false }
 });
 
