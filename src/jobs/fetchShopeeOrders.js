@@ -4,7 +4,6 @@ const logger = require('../utils/logger');
 
 async function fetchShopeeOrders() {
   try {
-    // Busca conexões ativas da Shopee
     const { rows: connections } = await pool.query(`
       SELECT client_id, access_token, additional_data
       FROM client_connections
