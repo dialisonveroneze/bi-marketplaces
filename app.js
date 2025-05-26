@@ -1,7 +1,7 @@
-require('dotenv').config();
-const { Pool } = require('pg');
-const fetchOrders = require('./src/jobs/fetchOrders');
+const fetchShopeeOrders = require('./src/jobs/fetchShopeeOrders');
+const normalizeShopee = require('./src/jobs/normalizeShopee');
 
-console.log('Iniciando aplicação...');
-
-fetchOrders();
+(async () => {
+  await fetchShopeeOrders();
+  await normalizeShopee();
+})();
