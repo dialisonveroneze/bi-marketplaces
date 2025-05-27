@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const pool = require('../db/connection');
+const pool = require('./src/db/connection');
 
 async function generateShopeeAuthLink(clientId) {
   const { rows } = await pool.query(`
