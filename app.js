@@ -1,25 +1,40 @@
-const express = require('express');
-const fetchShopeeOrders = require('./src/jobs/fetchShopeeOrders');
-const normalizeShopee = require('./src/jobs/normalizeShopee');
+onst express = require('express');
+const crypto = require('crypto');
+const pool = require('./src/db/connection');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/', (req, res) => {
-  res.send('BI Marketplaces API running!');
-});
+app.get('/shopee/auth-link/:client_id', async (req, res) => {
+  const { client_id } = req.params;
 
-app.get('/callback', (req, res) => {
-  console.log('Recebido callback:', req.query);
-  res.status(200).send('Callback recebido com sucesso!');
-});
+  try {
+    const { rows } = await pool.query(`
+      SELECT additional_data
+      FROM client_connections
+      WHERE client_id = $1 AND connection_name = 'shopee'
+    `, [client_id]);
 
-// Executa as funções automaticamente na inicialização
-(async () => {
-  console.log('Iniciando aplicação...');
-  await fetchShopeeOrders();
-  await normalizeShopee();
-})();
+    if (rows.length === 0) return res.status(404).send('Client not found');
+
+    const { partner_id, partner_key, redirect } = rows[0].additional_data;
+    const path = '/api/v2/shop/auth_partner';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const baseString = `${partner_id}${path}${timestamp}`;
+
+    const sign = crypto.createHmac('sha256', partner_key)
+                       .update(baseString)
+                       .digest('hex');
+
+    const authUrl = `https://partner.test-stable.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(redirect)}`;
+
+    res.json({ authUrl });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Internal server error');
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
