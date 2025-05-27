@@ -1,40 +1,35 @@
+// app.js
+require('dotenv').config();
 const express = require('express');
-const crypto = require('crypto');
-const pool = require('./src/db/connection');
+const axios = require('axios');
+const fetchShopeeOrders = require('./src/jobs/fetchShopeeOrders');
+const normalizeShopee = require('./src/jobs/normalizeShopee');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/shopee/auth-link/:client_id', async (req, res) => {
-  const { client_id } = req.params;
+app.get('/', (req, res) => res.send('BI Marketplaces API running!'));
 
+app.get('/callback', (req, res) => {
+  console.log('Recebido callback:', req.query);
+  res.send('Callback recebido com sucesso!');
+});
+
+app.get('/my-ip', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
-      SELECT additional_data
-      FROM client_connections
-      WHERE client_id = $1 AND connection_name = 'shopee'
-    `, [client_id]);
-
-    if (rows.length === 0) return res.status(404).send('Client not found');
-
-    const { partner_id, partner_key, redirect } = rows[0].additional_data;
-    const path = '/api/v2/shop/auth_partner';
-    const timestamp = Math.floor(Date.now() / 1000);
-    const baseString = `${partner_id}${path}${timestamp}`;
-
-    const sign = crypto.createHmac('sha256', partner_key)
-                       .update(baseString)
-                       .digest('hex');
-
-    const authUrl = `https://partner.test-stable.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(redirect)}`;
-
-    res.json({ authUrl });
-
+    const resp = await axios.get('https://ifconfig.me');
+    res.send(`Meu IP público é: ${resp.data}`);
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Internal server error');
+    res.status(500).send('Erro ao buscar IP: ' + err.message);
   }
 });
+
+// dispara a coleta/normalização na inicialização
+(async () => {
+  console.log('Iniciando aplicação...');
+  await fetchShopeeOrders();
+  await normalizeShopee();
+})();
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
