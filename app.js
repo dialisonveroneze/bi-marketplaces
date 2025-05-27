@@ -1,9 +1,12 @@
-const fetchShopeeOrders = require('./src/jobs/fetchShopeeOrders');
-const normalizeShopee = require('./src/jobs/normalizeShopee');
+const express = require('express');
+const app = express();
 
-console.log('Iniciando aplicação...');
+app.get('/callback', (req, res) => {
+  console.log('Recebido callback:', req.query);
+  res.status(200).send('Callback recebido com sucesso!');
+});
 
-(async () => {
-  await fetchShopeeOrders();
-  await normalizeShopee();
-})();
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
