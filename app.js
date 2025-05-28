@@ -1,29 +1,27 @@
 // app.js
 require('dotenv').config();
-const shopeeCallback  = require('./src/routes/shopeeCallback');
-const express         = require('express');
-const axios           = require('axios');
+const express = require('express');
+const axios = require('axios');
+
+// Rotas
+const shopeeCallback = require('./src/routes/shopeeCallback');
+
+// Jobs
 const fetchShopee     = require('./src/jobs/fetchShopeeOrders');
 const normalizeShopee = require('./src/jobs/normalizeShopee');
 const fetchMeli       = require('./src/jobs/fetchMeliOrders');
 const normalizeMeli   = require('./src/jobs/normalizeMeli');
 
-
 const app  = express();
 const PORT = process.env.PORT || 3000;
-app.use('/', shopeeCallback);
 
+// Rota para callback Shopee
+app.use('/', shopeeCallback);
 
 // Healthcheck
 app.get('/', (req, res) => res.send('BI Marketplaces API running!'));
 
-// Shopee OAuth callback
-app.get('/callback', (req, res) => {
-  console.log('Recebido callback Shopee:', req.query);
-  res.send('Callback recebido com sucesso!');
-});
-
-// Rota auxiliar para descobrir seu IP público
+// IP público da instância
 app.get('/my-ip', async (req, res) => {
   try {
     const resp = await axios.get('https://ifconfig.me');
@@ -33,7 +31,7 @@ app.get('/my-ip', async (req, res) => {
   }
 });
 
-// Função que executa todo o pipeline de coleta e normalização
+// Pipeline de coleta e normalização
 async function runAll() {
   try {
     console.log('🕜 Iniciando ciclo de coleta e normalização:');
@@ -51,14 +49,14 @@ async function runAll() {
   }
 }
 
-// 1) Executa imediatamente ao subir
+// Executa ao iniciar
 runAll();
 
-// 2) Agenda para rodar a cada 1 hora (3600000 ms)
+// Agenda o ciclo a cada 1 hora
 const ONE_HOUR = 1000 * 60 * 60;
 setInterval(runAll, ONE_HOUR);
 
-// Inicia o servidor HTTP
+// Inicia o servidor
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
