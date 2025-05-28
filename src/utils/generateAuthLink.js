@@ -15,7 +15,11 @@ async function generateShopeeAuthLink(clientId) {
   const additionalData = rows[0].additional_data;
   const partner_id = additionalData.partner_id;
   const partner_key = additionalData.partner_key;
-  const redirect = 'https://bi-marketplaces.onrender.com/callback';
+
+  // Agora permite ter "env" e "redirect" configuráveis no banco.
+  const env = additionalData.env || 'test';  
+  const redirect = additionalData.redirect || 'https://bi-marketplaces.onrender.com/callback';
+
   const path = '/api/v2/shop/auth_partner';
   const timestamp = Math.floor(Date.now() / 1000);
   const baseString = `${partner_id}${path}${timestamp}`;
@@ -24,7 +28,11 @@ async function generateShopeeAuthLink(clientId) {
                      .update(baseString)
                      .digest('hex');
 
-  const authUrl = `https://partner.test-stable.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(redirect)}`;
+  const baseURL = env === 'live'
+    ? 'https://partner.shopeemobile.com'
+    : 'https://partner.test-stable.shopeemobile.com';
+
+  const authUrl = `${baseURL}${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(redirect)}`;
 
   return authUrl;
 }
