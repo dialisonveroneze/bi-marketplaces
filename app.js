@@ -1,5 +1,6 @@
 // app.js
 require('dotenv').config();
+const shopeeCallback  = require('./src/routes/shopeeCallback');
 const express         = require('express');
 const axios           = require('axios');
 const fetchShopee     = require('./src/jobs/fetchShopeeOrders');
@@ -7,8 +8,11 @@ const normalizeShopee = require('./src/jobs/normalizeShopee');
 const fetchMeli       = require('./src/jobs/fetchMeliOrders');
 const normalizeMeli   = require('./src/jobs/normalizeMeli');
 
+
 const app  = express();
 const PORT = process.env.PORT || 3000;
+app.use('/', shopeeCallback);
+
 
 // Healthcheck
 app.get('/', (req, res) => res.send('BI Marketplaces API running!'));
