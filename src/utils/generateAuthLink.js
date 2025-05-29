@@ -1,37 +1,28 @@
+// src/utils/generateAuthLink.js
 const crypto = require('crypto');
 const pool = require('../db/connection');
 
-async function generateShopeeAuthLink(clientId) {
+async function generateAuthLink(clientId, marketplace = 'shopee') {
   const { rows } = await pool.query(`
     SELECT additional_data
     FROM client_connections
-    WHERE client_id = $1 AND connection_name = 'shopee'
-  `, [clientId]);
+    WHERE client_id = $1 AND connection_name = $2
+  `, [clientId, marketplace]);
 
-  if (rows.length === 0) {
-    throw new Error('Nenhuma conexão Shopee encontrada para este cliente.');
-  }
+  if (rows.length === 0) throw new Error(`Nenhuma conexão ${marketplace} encontrada para este cliente.`);
 
   const config = rows[0].additional_data;
-  const env = config.env === 'live' ? 'live' : 'test';
-  const partner_id = config[env].partner_id;
-  const partner_key = config[env].partner_key;
+  if (!config.env || !config[config.env]) throw new Error(`Configuração 'env' ou dados de ambiente ausentes.`);
+
+  const { partner_id, partner_key } = config[config.env];
   const redirect = config.redirect || 'https://bi-marketplaces.onrender.com/callback';
   const path = '/api/v2/shop/auth_partner';
   const timestamp = Math.floor(Date.now() / 1000);
   const baseString = `${partner_id}${path}${timestamp}`;
+  const sign = crypto.createHmac('sha256', partner_key).update(baseString).digest('hex');
 
-  const sign = crypto.createHmac('sha256', partner_key)
-    .update(baseString)
-    .digest('hex');
-
-  const domain = env === 'live'
-    ? 'https://partner.shopeemobile.com'
-    : 'https://partner.test-stable.shopeemobile.com';
-
-  const authUrl = `${domain}${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(redirect)}`;
-
-  return authUrl;
+  const url = `https://partner.${config.env === 'live' ? '' : 'test-stable.'}shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(redirect)}`;
+  return url;
 }
 
-module.exports = generateShopeeAuthLink;
+module.exports = generateAuthLink;
