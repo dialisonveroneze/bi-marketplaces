@@ -51,7 +51,8 @@ router.get('/callback', async (req, res) => {
 	  tokenUrl,
 	  {
 		code,
-		shop_id
+		shop_id,
+		partner_id // ✅ Adicionado aqui no corpo da requisição
 	  },
 	  {
 		headers: {
@@ -59,6 +60,7 @@ router.get('/callback', async (req, res) => {
 		}
 	  }
 	);
+
 
     // 🔍 LOGAR a resposta completa da Shopee para análise
     console.log('📨 RESPOSTA RAW Shopee:', JSON.stringify(tokenResp.data, null, 2));
