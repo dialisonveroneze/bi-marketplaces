@@ -45,8 +45,10 @@ router.get('/callback', async (req, res) => {
     console.log('✍️ Assinatura gerada:', sign);
 
 	// 3. Requisição à Shopee para obter os tokens
+	const tokenUrl = `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}`;
+
 	const tokenResp = await axios.post(
-	  `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}`,
+	  tokenUrl,
 	  {
 		code,
 		shop_id
