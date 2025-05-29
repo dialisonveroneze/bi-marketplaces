@@ -44,20 +44,19 @@ router.get('/callback', async (req, res) => {
     console.log('🧾 Base da assinatura:', baseString);
     console.log('✍️ Assinatura gerada:', sign);
 
-    // 3. Requisição à Shopee para obter os tokens
-   const tokenResp = await axios.post(
-  `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}`,
-  {
-	code,
-	partner_id,
-	shop_id
-  },
-  {
-	headers: {
-	  'Content-Type': 'application/json'
-	}
-  }
-  );
+	// 3. Requisição à Shopee para obter os tokens
+	const tokenResp = await axios.post(
+	  `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}`,
+	  {
+		code,
+		shop_id
+	  },
+	  {
+		headers: {
+		  'Content-Type': 'application/json'
+		}
+	  }
+	);
 
     // 🔍 LOGAR a resposta completa da Shopee para análise
     console.log('📨 RESPOSTA RAW Shopee:', JSON.stringify(tokenResp.data, null, 2));
