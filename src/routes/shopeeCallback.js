@@ -1,3 +1,4 @@
+// src/routes/shopeeCallback.js
 const express = require('express');
 const crypto = require('crypto');
 const axios = require('axios');
@@ -12,6 +13,7 @@ router.get('/callback', async (req, res) => {
   try {
     console.log('📩 Callback recebido:', { code, shop_id });
 
+    // Busca config do banco
     const { rows } = await pool.query(
       `SELECT additional_data FROM client_connections WHERE client_id = $1 AND connection_name = 'shopee'`,
       [clientId]
@@ -31,22 +33,25 @@ router.get('/callback', async (req, res) => {
     const partner_key = partnerData.partner_key;
     const redirect = config.redirect;
 
+    // Assinatura
     const path = '/api/v2/auth/token/get';
     const timestamp = Math.floor(Date.now() / 1000);
     const baseString = `${partner_id}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', partner_key).update(baseString).digest('hex');
 
+    // URL final
     const tokenUrl = `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}`;
 
-    console.log('🌐 Endpoint usado:', tokenUrl);
-    console.log('📦 Corpo da requisição:', { code, shop_id, partner_id });
+    console.log('🌐 URL chamada:', tokenUrl);
+    console.log('📦 Body:', { code, shop_id, partner_id });
 
+    // Requisição POST
     const tokenResp = await axios.post(
       tokenUrl,
       {
         code,
         shop_id,
-        partner_id // ❗ OBRIGATÓRIO NO BODY TAMBÉM!
+        partner_id // OBRIGATÓRIO NO BODY TAMBÉM
       },
       {
         headers: {
@@ -63,6 +68,7 @@ router.get('/callback', async (req, res) => {
       throw new Error('Tokens não retornados pela Shopee. Resposta recebida: ' + JSON.stringify(tokenResp.data));
     }
 
+    // Atualiza banco
     await pool.query(
       `UPDATE client_connections
        SET access_token = $1,
