@@ -61,12 +61,16 @@ router.get('/callback', async (req, res) => {
       }
     );
 
-    console.log('📨 Resposta da Shopee (completa):', tokenResp.data);
+    // 🔍 LOGAR a resposta completa da Shopee para análise
+    console.log('📨 RESPOSTA RAW Shopee:', JSON.stringify(tokenResp.data, null, 2));
 
     const { access_token, refresh_token } = tokenResp.data;
 
     if (!access_token || !refresh_token) {
-      throw new Error('Tokens não retornados pela Shopee.');
+      throw new Error(
+        'Tokens não retornados pela Shopee. Resposta recebida: ' +
+        JSON.stringify(tokenResp.data)
+      );
     }
 
     // 4. Garante que o campo additional_data esteja inicializado
