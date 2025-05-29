@@ -8,12 +8,11 @@ const router = express.Router();
 
 router.get('/callback', async (req, res) => {
   const { code, shop_id } = req.query;
-  const clientId = 1; // fixo para este projeto
+  const clientId = 1;
 
   try {
     console.log('📩 Callback recebido:', { code, shop_id });
 
-    // 1. Buscar configurações do cliente
     const { rows } = await pool.query(
       `SELECT additional_data FROM client_connections WHERE client_id = $1 AND connection_name = 'shopee'`,
       [clientId]
@@ -35,25 +34,29 @@ router.get('/callback', async (req, res) => {
 
     console.log('🔐 Configuração carregada:', { env, partner_id, redirect });
 
-    // 2. Gerar assinatura
+    // 2. Assinatura
     const path = '/api/v2/auth/token/get';
     const timestamp = Math.floor(Date.now() / 1000);
     const baseString = `${partner_id}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', partner_key).update(baseString).digest('hex');
 
-    console.log('🧾 Base da assinatura:', baseString);
-    console.log('✍️ Assinatura:', sign);
+    const baseUrl =
+      env === 'live'
+        ? 'https://partner.shopeemobile.com'
+        : 'https://partner.test-stable.shopeemobile.com';
 
-    // 3. Solicitar token
-    const tokenResp = await axios.post(`https://partner.shopeemobile.com${path}`, {
+    console.log('🌐 Endpoint usado:', baseUrl + path);
+
+    // 3. Requisição
+    const tokenResp = await axios.post(`${baseUrl}${path}`, {
       code,
       partner_id,
       shop_id,
       timestamp,
-      sign
+      sign,
     });
 
-    console.log('📨 Resposta da Shopee:', tokenResp.data);
+    console.log('📨 Resposta completa:', tokenResp.data);
 
     const { access_token, refresh_token } = tokenResp.data;
 
@@ -61,13 +64,6 @@ router.get('/callback', async (req, res) => {
       throw new Error('Tokens não retornados pela Shopee.');
     }
 
-    // 4. Garantir additional_data como objeto JSON válido
-    await pool.query(
-      `UPDATE client_connections SET additional_data = COALESCE(additional_data, '{}'::jsonb) WHERE client_id = $1 AND connection_name = 'shopee'`,
-      [clientId]
-    );
-
-    // 5. Atualizar banco
     await pool.query(
       `UPDATE client_connections
        SET access_token = $1,
@@ -77,11 +73,13 @@ router.get('/callback', async (req, res) => {
       [access_token, refresh_token, shop_id.toString(), clientId]
     );
 
-    console.log('✅ Tokens salvos no banco para client_id:', clientId);
+    console.log('✅ Tokens salvos no banco.');
     res.send('Callback recebido com sucesso! Token salvo no banco.');
   } catch (err) {
-    console.error('❌ Erro completo no callback:', err.response?.data || err.message || err);
-    res.status(500).send('Erro ao processar callback: ' + (err.response?.data?.message || err.message));
+    console.error('❌ Erro completo:', err.response?.data || err.message || err);
+    res
+      .status(500)
+      .send('Erro ao processar callback: ' + (err.response?.data?.message || err.message));
   }
 });
 
