@@ -26,21 +26,20 @@ async function fetchShopeeOrders() {
 
     const { access_token, client_id, additional_data } = data;
 
-    let additional;
-    if (typeof additional_data === 'string') {
-      try {
-        additional = JSON.parse(additional_data);
-      } catch (parseError) {
-        console.error('❌ Erro ao parsear additional_data:', parseError);
-        return;
-      }
-    } else {
-      additional = additional_data; // Se já for JSON no Supabase
-    }
+    // Parsear o campo JSON "additional_data"
+    let partner_id, partner_key, shop_id;
+    try {
+      const additional = typeof additional_data === 'string'
+        ? JSON.parse(additional_data)
+        : additional_data;
 
-    const partner_id = additional.live.partner_id;
-    const partner_key = additional.live.partner_key;
-    const shop_id = additional.live.shop_id || 'shop_id_aqui';
+      partner_id = additional.live.partner_id;
+      partner_key = additional.live.partner_key;
+      shop_id = additional.live.shop_id || 'shop_id_aqui';  // Ajuste conforme necessário
+    } catch (parseError) {
+      console.error('❌ Erro ao parsear additional_data:', parseError);
+      return;
+    }
 
     const path = '/api/v2/order/get_order_list';
     const timestamp = Math.floor(Date.now() / 1000);
