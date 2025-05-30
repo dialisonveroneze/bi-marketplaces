@@ -7,7 +7,6 @@ const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function fetchShopeeOrders() {
@@ -16,7 +15,7 @@ async function fetchShopeeOrders() {
 
     const { data, error } = await supabase
       .from('client_connections')
-      .select('access_token, client_id, shop_id, additional_data')
+      .select('access_token, client_id, additional_data')
       .eq('connection_name', 'shopee')
       .single();
 
@@ -25,21 +24,17 @@ async function fetchShopeeOrders() {
       return;
     }
 
-    const { access_token, client_id, shop_id, additional_data } = data;
+    const { access_token, client_id, additional_data } = data;
 
-    // Pega partner_id e partner_key de dentro do JSON
-    let partner_id, partner_key;
+    // Parsear o campo JSON "additional_data"
+    let partner_id, partner_key, shop_id;
     try {
-      const parsedData = JSON.parse(additional_data);
-      partner_id = parsedData?.live?.partner_id || parsedData?.partner_id;
-      partner_key = parsedData?.live?.partner_key || parsedData?.partner_key;
+      const additional = JSON.parse(additional_data);
+      partner_id = additional.live.partner_id;
+      partner_key = additional.live.partner_key;
+      shop_id = additional.live.shop_id || 'shop_id_aqui';  // Ajuste conforme necessário
     } catch (parseError) {
-      console.error('❌ Erro ao parsear additional_data:', parseError.message);
-      return;
-    }
-
-    if (!partner_id || !partner_key) {
-      console.error('❌ partner_id ou partner_key não encontrados no additional_data.');
+      console.error('❌ Erro ao parsear additional_data:', parseError);
       return;
     }
 
@@ -53,8 +48,14 @@ async function fetchShopeeOrders() {
 
     const response = await axios.post(
       url,
-      { page_size: 20 },
-      { headers: { 'Content-Type': 'application/json' } }
+      {
+        page_size: 20
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
     );
 
     const orders = response.data.response?.order_list || [];
