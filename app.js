@@ -1,6 +1,5 @@
 // app.js
 
-require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
@@ -19,19 +18,18 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Endpoint de Callback Shopee (OAuth)
+// Callback Shopee
 app.get('/', async (req, res) => {
   const { code, shop_id } = req.query;
 
   if (!code || !shop_id) {
-    return res.send(`🚀 Servidor rodando na porta ${PORT}`);
+    return res.send('🚀 Servidor rodando na porta ' + PORT);
   }
 
   try {
-    // Busca as credenciais do banco de dados
     const { data, error } = await supabase
       .from('client_connections')
-      .select('additional_data')
+      .select('partner_id, partner_key')
       .eq('connection_name', 'shopee')
       .single();
 
@@ -40,17 +38,8 @@ app.get('/', async (req, res) => {
       return res.status(500).send('Erro ao buscar credenciais Shopee.');
     }
 
-    // Parseia o JSON de additional_data
-    let partner_id, partner_key;
-    try {
-      const additional = JSON.parse(data.additional_data);
-      partner_id = additional.live.partner_id;
-      partner_key = additional.live.partner_key;
-    } catch (parseError) {
-      console.error('❌ Erro ao parsear additional_data:', parseError);
-      return res.status(500).send('Erro ao processar additional_data.');
-    }
-
+    const partner_id = data.partner_id;
+    const partner_key = data.partner_key;
     const path = '/api/v2/auth/token/get';
     const timestamp = Math.floor(Date.now() / 1000);
     const baseString = `${partner_id}${path}${timestamp}`;
@@ -73,7 +62,6 @@ app.get('/', async (req, res) => {
 
     console.log('✅ Token recebido com sucesso:', response.data);
 
-    // Atualiza o token no banco de dados
     await supabase
       .from('client_connections')
       .update({
@@ -84,7 +72,7 @@ app.get('/', async (req, res) => {
 
     res.send('✅ Callback processado com sucesso!');
   } catch (err) {
-    console.error('❌ Erro no callback:', err.message);
+    console.error('❌ Erro no callback:', err);
     res.status(500).send(`Erro ao processar callback: ${err.message}`);
   }
 });
