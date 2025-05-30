@@ -43,7 +43,7 @@ async function fetchShopeeOrders() {
     // Extrai partner_id, partner_key e shop_id do objeto additional_data
     const partner_id = additionalData?.live?.partner_id;
     const partner_key = additionalData?.live?.partner_key;
-    const shop_id = additionalData?.live?.shop_id; // Verifique se existe
+    const shop_id = additionalData?.live?.shop_id;
 
     const access_token = data.access_token;
     const client_id = data.client_id;
