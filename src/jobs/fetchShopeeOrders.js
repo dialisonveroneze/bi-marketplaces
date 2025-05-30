@@ -1,5 +1,5 @@
 // src/jobs/fetchShopeeOrders.js
-
+const crypto = require('crypto');
 require('dotenv').config();
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
@@ -12,15 +12,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // Resto do código aqui...
 
 
-
 async function fetchShopeeOrders() {
   try {
     console.log('🔍 Buscando pedidos da Shopee...');
 
-    // Buscar token no banco de dados
     const { data, error } = await supabase
       .from('client_connections')
-      .select('access_token, client_id')
+      .select('access_token, client_id, partner_id, partner_key, shop_id')
       .eq('connection_name', 'shopee')
       .single();
 
@@ -29,32 +27,44 @@ async function fetchShopeeOrders() {
       return;
     }
 
-    const accessToken = data.access_token;
-    const clientId = data.client_id;
+    const { access_token, client_id, partner_id, partner_key, shop_id } = data;
+    const path = '/api/v2/order/get_order_list';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const baseString = `${partner_id}${path}${timestamp}${access_token}${shop_id}`;
+    const sign = crypto.createHmac('sha256', partner_key).update(baseString).digest('hex');
+    const url = `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&access_token=${access_token}&shop_id=${shop_id}&sign=${sign}`;
 
-    // EXEMPLO: Pegando pedidos da Shopee
-    const response = await axios.get('https://partner.shopeemobile.com/api/v2/orders/get_order_list', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
+    console.log('🌐 Endpoint Shopee:', url);
+
+    const response = await axios.post(
+      url,
+      {
+        page_size: 20
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
       }
-    });
+    );
 
-    const orders = response.data.orders || [];
+    const orders = response.data.response.order_list || [];
+    console.log(`📦 Total de pedidos recebidos: ${orders.length}`);
 
     if (orders.length === 0) {
       console.log('📭 Nenhum pedido novo encontrado.');
       return;
     }
 
-    // Salvar cada pedido como JSON bruto no banco de dados
     for (const order of orders) {
       await supabase.from('orders_raw_shopee').insert({
         received_at: new Date().toISOString(),
-        client_id: clientId,
+        client_id,
         raw_data: order,
         order_id: order.order_sn,
         is_processed: false
       });
+      console.log(`✅ Pedido ${order.order_sn} salvo no banco de dados.`);
     }
 
     console.log(`✅ ${orders.length} pedidos da Shopee salvos no banco de dados.`);
@@ -62,5 +72,3 @@ async function fetchShopeeOrders() {
     console.error('❌ Erro ao buscar pedidos da Shopee:', err.message);
   }
 }
-
-module.exports = fetchShopeeOrders;
