@@ -5,8 +5,6 @@ const axios = require('axios');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
-require('dotenv').config();
-
 const fetchShopeeOrders = require('./src/jobs/fetchShopeeOrders');
 const normalizeShopee = require('./src/jobs/normalizeShopee');
 const fetchMeli = require('./src/jobs/fetchMeliOrders');
@@ -20,7 +18,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Callback Shopee
+// Callback Shopee para receber código e shop_id
 app.get('/', async (req, res) => {
   const { code, shop_id } = req.query;
 
@@ -32,7 +30,7 @@ app.get('/', async (req, res) => {
     // Busca as credenciais do banco de dados
     const { data, error } = await supabase
       .from('client_connections')
-      .select('additional_data')
+      .select('partner_id, partner_key')
       .eq('connection_name', 'shopee')
       .single();
 
@@ -41,20 +39,8 @@ app.get('/', async (req, res) => {
       return res.status(500).send('Erro ao buscar credenciais Shopee.');
     }
 
-    // Parse do JSON additional_data
-    let partner_id, partner_key;
-    try {
-      const additionalData = typeof data.additional_data === 'string'
-        ? JSON.parse(data.additional_data)
-        : data.additional_data;
-
-      partner_id = additionalData.live.partner_id;
-      partner_key = additionalData.live.partner_key;
-    } catch (parseError) {
-      console.error('❌ Erro ao parsear additional_data:', parseError);
-      return res.status(500).send('Erro ao parsear dados adicionais.');
-    }
-
+    const partner_id = data.partner_id;
+    const partner_key = data.partner_key;
     const path = '/api/v2/auth/token/get';
     const timestamp = Math.floor(Date.now() / 1000);
     const baseString = `${partner_id}${path}${timestamp}`;
@@ -77,24 +63,14 @@ app.get('/', async (req, res) => {
 
     console.log('✅ Token recebido com sucesso:', response.data);
 
-    if (!response.data.access_token) {
-      console.error('❌ access_token não retornado!');
-      return res.status(500).send('access_token não retornado pela Shopee.');
-    }
-
     // Atualiza o token no banco de dados
-    const { error: updateError } = await supabase
+    await supabase
       .from('client_connections')
       .update({
         access_token: response.data.access_token,
         refresh_token: response.data.refresh_token
       })
       .eq('connection_name', 'shopee');
-
-    if (updateError) {
-      console.error('❌ Erro ao salvar tokens:', updateError);
-      return res.status(500).send('Erro ao salvar tokens no banco de dados.');
-    }
 
     res.send('✅ Callback processado com sucesso!');
   } catch (err) {
@@ -121,9 +97,9 @@ async function runAll() {
   }
 }
 
-// Executa ao iniciar
+// Executa ao iniciar e depois a cada 1 hora
 runAll();
-setInterval(runAll, 1000 * 60 * 60); // Executa a cada 1 hora
+setInterval(runAll, 1000 * 60 * 60);
 
 // Inicia o servidor
 app.listen(PORT, () => {
