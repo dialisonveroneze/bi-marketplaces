@@ -7,25 +7,24 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Configurações Supabase
+// Configuração do Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Função para buscar configurações da Shopee no banco de dados
+// Função auxiliar para buscar dados de configuração
 async function getShopeeConfig() {
   const { data, error } = await supabase
     .from('config_shopee')
     .select('*')
     .single();
-  if (error) throw new Error('Erro ao buscar configurações da Shopee: ' + error.message);
+  if (error) throw new Error('Erro ao buscar configuração da Shopee: ' + error.message);
   return data;
 }
 
-// Rota principal
+// Rota principal (callback Shopee)
 app.get('/', async (req, res) => {
   const { code, shop_id } = req.query;
-
   if (!code || !shop_id) {
     return res.send('✅ BI Marketplaces API running!');
   }
@@ -41,7 +40,7 @@ app.get('/', async (req, res) => {
     const sign = crypto.createHmac('sha256', partner_key).update(baseString).digest('hex');
     const url = `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}`;
 
-    console.log('🔗 URL Shopee Token:', url);
+    console.log('🔗 URL gerada Shopee Token:', url);
 
     const response = await axios.post(
       url,
@@ -51,6 +50,7 @@ app.get('/', async (req, res) => {
 
     console.log('✅ Token recebido:', response.data);
 
+    // Atualizar tokens no banco
     await supabase
       .from('config_shopee')
       .update({
