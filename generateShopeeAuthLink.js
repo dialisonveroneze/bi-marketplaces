@@ -1,20 +1,43 @@
-// 📂 Nome do arquivo: generateShopeeAuthLink.js
+// generateShopeeAuthLink.js (com Supabase)
 
 const crypto = require('crypto');
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-const partner_id = 2011476;
-const partner_key = '4e4b76515a5550644b4755494875614e416d7267696c706167634b6b424f5870';
-const redirect_url = 'https://bi-marketplaces.onrender.com/callback';
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-const path = '/api/v2/shop/auth_partner';
-const timestamp = Math.floor(Date.now() / 1000);
-const baseString = `${partner_id}${path}${timestamp}`;
-const sign = crypto.createHmac('sha256', partner_key).update(baseString).digest('hex');
+async function generateAuthLink(client_id) {
+  try {
+    const { data, error } = await supabase
+      .from('client_connections')
+      .select('partner_id, partner_key, redirect_url')
+      .eq('client_id', client_id)
+      .eq('connection_name', 'shopee')
+      .single();
 
-const encodedRedirect = encodeURIComponent(redirect_url);
+    if (error) throw error;
+    if (!data) throw new Error('Dados não encontrados para o client_id informado.');
 
-const authUrl = `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}&redirect=${encodedRedirect}`;
+    const { partner_id, partner_key, redirect_url } = data;
+    const path = '/api/v2/shop/auth_partner';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const baseString = `${partner_id}${path}${timestamp}`;
+    const sign = crypto.createHmac('sha256', partner_key).update(baseString).digest('hex');
 
-console.log('\n🔗 Link de autorização Shopee:\n');
-console.log(authUrl);
-console.log('\n📌 Acesse esse link para autorizar a loja.\n');
+    const authUrl = `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(redirect_url)}`;
+
+    console.log(`\n🔗 Link de autorização para o client_id ${client_id}:\n`);
+    console.log(authUrl);
+  } catch (err) {
+    console.error('❌ Erro ao gerar link de autorização:', err.message);
+  }
+}
+
+// 🧪 Execução direta via terminal (ex: node generateShopeeAuthLink.js 1)
+const clientIdFromArg = process.argv[2];
+if (!clientIdFromArg) {
+  console.error('❌ Você precisa passar o client_id. Ex: node generateShopeeAuthLink.js 1');
+  process.exit(1);
+}
+
+generateAuthLink(parseInt(clientIdFromArg));
