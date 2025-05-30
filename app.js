@@ -18,7 +18,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Callback Shopee para receber código e shop_id
+// Callback Shopee para atualizar tokens
 app.get('/', async (req, res) => {
   const { code, shop_id } = req.query;
 
@@ -27,7 +27,7 @@ app.get('/', async (req, res) => {
   }
 
   try {
-    // Busca as credenciais do banco de dados
+    // Buscar credenciais no banco
     const { data, error } = await supabase
       .from('client_connections')
       .select('partner_id, partner_key')
@@ -63,7 +63,7 @@ app.get('/', async (req, res) => {
 
     console.log('✅ Token recebido com sucesso:', response.data);
 
-    // Atualiza o token no banco de dados
+    // Atualiza tokens no banco
     await supabase
       .from('client_connections')
       .update({
@@ -97,8 +97,10 @@ async function runAll() {
   }
 }
 
-// Executa ao iniciar e depois a cada 1 hora
+// Executa ao iniciar
 runAll();
+
+// Agenda execução a cada 1 hora
 setInterval(runAll, 1000 * 60 * 60);
 
 // Inicia o servidor

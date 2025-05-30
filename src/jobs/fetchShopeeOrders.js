@@ -15,7 +15,7 @@ async function fetchShopeeOrders() {
 
     const { data, error } = await supabase
       .from('client_connections')
-      .select('access_token, refresh_token, client_id, additional_data')
+      .select('access_token, client_id, additional_data')
       .eq('connection_name', 'shopee')
       .single();
 
@@ -26,13 +26,18 @@ async function fetchShopeeOrders() {
 
     const { access_token, client_id, additional_data } = data;
 
-    // O additional_data já vem como objeto JSON, então não usa JSON.parse()
-    const partner_id = additional_data?.live?.partner_id;
-    const partner_key = additional_data?.live?.partner_key;
-    const shop_id = additional_data?.live?.shop_id;
-
-    if (!partner_id || !partner_key || !shop_id) {
+    // additional_data já é objeto JS, não fazer JSON.parse
+    if (!additional_data || !additional_data.live) {
       console.error('❌ Dados essenciais ausentes em additional_data');
+      return;
+    }
+
+    const partner_id = additional_data.live.partner_id;
+    const partner_key = additional_data.live.partner_key;
+    const shop_id = additional_data.live.shop_id;
+
+    if (!access_token || !partner_id || !partner_key || !shop_id) {
+      console.error('❌ Dados essenciais ausentes (token ou IDs)');
       return;
     }
 
@@ -46,14 +51,8 @@ async function fetchShopeeOrders() {
 
     const response = await axios.post(
       url,
-      {
-        page_size: 20
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+      { page_size: 20 },
+      { headers: { 'Content-Type': 'application/json' } }
     );
 
     const orders = response.data.response?.order_list || [];
