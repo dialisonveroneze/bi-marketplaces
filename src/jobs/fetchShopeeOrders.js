@@ -10,10 +10,8 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function fetchShopeeOrders() {
+  console.log('🔍 [fetchShopeeOrders] Iniciando busca de pedidos da Shopee...');
   try {
-    console.log('🔍 [fetchShopeeOrders] Iniciando busca de pedidos da Shopee...');
-
-    // Busca dados da conexão
     const { data, error } = await supabase
       .from('client_connections')
       .select('access_token, client_id, additional_data')
@@ -25,20 +23,15 @@ async function fetchShopeeOrders() {
       return;
     }
 
-    console.log('ℹ️ [fetchShopeeOrders] Dados recebidos do banco:', {
-      access_token: data.access_token,
-      client_id: data.client_id,
-      additional_data: data.additional_data,
-    });
+    console.log('ℹ️ [fetchShopeeOrders] Dados recebidos do banco:', data);
 
-    const { access_token, client_id, additional_data } = data;
+    let additionalData = data.additional_data;
 
-    // Trata additional_data, que pode já ser objeto ou string JSON
-    let additional = additional_data;
-    if (typeof additional_data === 'string') {
+    // Se for string, parseia; se for objeto, usa direto
+    if (typeof additionalData === 'string') {
       try {
-        additional = JSON.parse(additional_data);
-        console.log('✅ [fetchShopeeOrders] additional_data parseado de string JSON');
+        additionalData = JSON.parse(additionalData);
+        console.log('✅ [fetchShopeeOrders] additional_data parseado com sucesso.');
       } catch (parseError) {
         console.error('❌ [fetchShopeeOrders] Falha ao parsear additional_data:', parseError);
         return;
@@ -47,20 +40,21 @@ async function fetchShopeeOrders() {
       console.log('✅ [fetchShopeeOrders] additional_data já é objeto JSON');
     }
 
-    // Extrai dados essenciais
-    const partner_id = additional?.live?.partner_id;
-    const partner_key = additional?.live?.partner_key;
-    const shop_id = additional?.live?.shop_id;
+    // Extrai partner_id, partner_key e shop_id do objeto additional_data
+    const partner_id = additionalData?.live?.partner_id;
+    const partner_key = additionalData?.live?.partner_key;
+    const shop_id = additionalData?.live?.shop_id; // Verifique se existe
 
-    console.log(`ℹ️ [fetchShopeeOrders] partner_id=${partner_id}, partner_key=[OCULTO], shop_id=${shop_id}`);
+    const access_token = data.access_token;
+    const client_id = data.client_id;
 
-    // Validação de dados essenciais
     if (!partner_id || !partner_key || !shop_id || !access_token) {
       console.error('❌ [fetchShopeeOrders] Dados essenciais ausentes (partner_id, partner_key, shop_id ou access_token)');
       return;
     }
 
-    // Geração de assinatura para autenticação
+    console.log(`ℹ️ [fetchShopeeOrders] partner_id=${partner_id}, shop_id=${shop_id}, access_token=[OCULTO]`);
+
     const path = '/api/v2/order/get_order_list';
     const timestamp = Math.floor(Date.now() / 1000);
     const baseString = `${partner_id}${path}${timestamp}${access_token}${shop_id}`;
@@ -72,8 +66,14 @@ async function fetchShopeeOrders() {
 
     const response = await axios.post(
       url,
-      { page_size: 20 },
-      { headers: { 'Content-Type': 'application/json' } }
+      {
+        page_size: 20
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
     );
 
     const orders = response.data.response?.order_list || [];
@@ -84,7 +84,6 @@ async function fetchShopeeOrders() {
       return;
     }
 
-    // Salvar pedidos no banco
     for (const order of orders) {
       await supabase.from('orders_raw_shopee').insert({
         received_at: new Date().toISOString(),
