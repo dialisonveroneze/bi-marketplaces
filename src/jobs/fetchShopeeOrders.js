@@ -16,7 +16,7 @@ async function fetchShopeeOrders() {
 
     const { data, error } = await supabase
       .from('client_connections')
-      .select('access_token, client_id, partner_id, partner_key, shop_id')
+      .select('access_token, client_id, shop_id, additional_data')
       .eq('connection_name', 'shopee')
       .single();
 
@@ -25,7 +25,24 @@ async function fetchShopeeOrders() {
       return;
     }
 
-    const { access_token, client_id, partner_id, partner_key, shop_id } = data;
+    const { access_token, client_id, shop_id, additional_data } = data;
+
+    // Pega partner_id e partner_key de dentro do JSON
+    let partner_id, partner_key;
+    try {
+      const parsedData = JSON.parse(additional_data);
+      partner_id = parsedData?.live?.partner_id || parsedData?.partner_id;
+      partner_key = parsedData?.live?.partner_key || parsedData?.partner_key;
+    } catch (parseError) {
+      console.error('❌ Erro ao parsear additional_data:', parseError.message);
+      return;
+    }
+
+    if (!partner_id || !partner_key) {
+      console.error('❌ partner_id ou partner_key não encontrados no additional_data.');
+      return;
+    }
+
     const path = '/api/v2/order/get_order_list';
     const timestamp = Math.floor(Date.now() / 1000);
     const baseString = `${partner_id}${path}${timestamp}${access_token}${shop_id}`;
@@ -36,17 +53,11 @@ async function fetchShopeeOrders() {
 
     const response = await axios.post(
       url,
-      {
-        page_size: 20
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+      { page_size: 20 },
+      { headers: { 'Content-Type': 'application/json' } }
     );
 
-    const orders = response.data.response.order_list || [];
+    const orders = response.data.response?.order_list || [];
     console.log(`📦 Total de pedidos recebidos: ${orders.length}`);
 
     if (orders.length === 0) {
