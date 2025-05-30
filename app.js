@@ -4,29 +4,25 @@ const axios = require('axios');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
-// Conexão com o Supabase (leitura via variáveis de ambiente)
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+// Configurações Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const app = express();
-const PORT = process.env.PORT || 10000;
-
-// Função para buscar dados do banco
+// Função para buscar configurações da Shopee no banco de dados
 async function getShopeeConfig() {
   const { data, error } = await supabase
     .from('config_shopee')
     .select('*')
     .single();
-
-  if (error) {
-    throw new Error('Erro ao buscar configurações da Shopee: ' + error.message);
-  }
-
+  if (error) throw new Error('Erro ao buscar configurações da Shopee: ' + error.message);
   return data;
 }
 
-// Callback Shopee (recebe code e shop_id)
+// Rota principal
 app.get('/', async (req, res) => {
   const { code, shop_id } = req.query;
 
@@ -35,32 +31,26 @@ app.get('/', async (req, res) => {
   }
 
   try {
-    // Busca configs
     const config = await getShopeeConfig();
     const partner_id = config.partner_id;
     const partner_key = config.partner_key;
 
-    // Gera sign e URL para obter token
     const path = '/api/v2/auth/token/get';
     const timestamp = Math.floor(Date.now() / 1000);
     const baseString = `${partner_id}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', partner_key).update(baseString).digest('hex');
     const url = `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}`;
 
-    console.log('🔗 URL Shopee Auth:', url);
+    console.log('🔗 URL Shopee Token:', url);
 
-    // Envia POST para Shopee
-    const response = await axios.post(url, {
-      code,
-      shop_id: Number(shop_id),
-      partner_id
-    }, {
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const response = await axios.post(
+      url,
+      { code, shop_id: Number(shop_id), partner_id },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
 
     console.log('✅ Token recebido:', response.data);
 
-    // Atualiza token no Supabase
     await supabase
       .from('config_shopee')
       .update({
@@ -87,7 +77,7 @@ app.get('/my-ip', async (req, res) => {
   }
 });
 
-// Inicia servidor
+// Inicia o servidor
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
