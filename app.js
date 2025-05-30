@@ -2,9 +2,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
-
-// Rotas
-const shopeeCallback = require('./src/routes/shopeeCallback');
+const crypto = require('crypto');
 
 // Jobs
 const fetchShopee     = require('./src/jobs/fetchShopeeOrders');
@@ -15,11 +13,48 @@ const normalizeMeli   = require('./src/jobs/normalizeMeli');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// Rota para callback Shopee
-app.use('/', shopeeCallback);
+// ✅ Callback Shopee diretamente na rota raiz '/'
+app.get('/', async (req, res) => {
+  const { code, shop_id } = req.query;
+  const partner_id = 2011476;
+  const partner_key = '4e4b76515a5550644b4755494875614e416d7267696c706167634b6b424f5870';
 
-// Healthcheck
-app.get('/', (req, res) => res.send('BI Marketplaces API running!'));
+  // Se não for callback, retorna mensagem padrão
+  if (!code || !shop_id) {
+    return res.send('BI Marketplaces API running!');
+  }
+
+  const path = '/api/v2/auth/token/get';
+  const timestamp = Math.floor(Date.now() / 1000);
+  const baseString = `${partner_id}${path}${timestamp}`;
+  const sign = crypto.createHmac('sha256', partner_key).update(baseString).digest('hex');
+  const url = `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}`;
+
+  console.log('📩 Callback recebido:', { code, shop_id });
+  console.log('🌐 Endpoint usado:', url);
+
+  try {
+    const response = await axios.post(
+      url,
+      {
+        code,
+        shop_id: Number(shop_id),
+        partner_id
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('✅ Token recebido com sucesso:', response.data);
+    res.send('✅ Callback processado com sucesso. Veja o terminal.');
+  } catch (error) {
+    console.error('❌ Erro ao processar callback:', error.response?.data || error.message);
+    res.status(500).send(`Erro ao processar callback: Tokens não retornados pela Shopee. Resposta: ${JSON.stringify(error.response?.data || error.message)}`);
+  }
+});
 
 // IP público da instância
 app.get('/my-ip', async (req, res) => {
@@ -31,7 +66,7 @@ app.get('/my-ip', async (req, res) => {
   }
 });
 
-// Pipeline de coleta e normalização
+// 🔄 Pipeline de coleta e normalização
 async function runAll() {
   try {
     console.log('🕜 Iniciando ciclo de coleta e normalização:');
