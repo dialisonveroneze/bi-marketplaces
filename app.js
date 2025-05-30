@@ -13,12 +13,10 @@ const normalizeMeli = require('./src/jobs/normalizeMeli');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Configuração do Supabase
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Callback Shopee para atualizar tokens
 app.get('/', async (req, res) => {
   const { code, shop_id } = req.query;
 
@@ -27,7 +25,8 @@ app.get('/', async (req, res) => {
   }
 
   try {
-    // Buscar credenciais no banco
+    console.log('🔄 Recebendo callback Shopee com code e shop_id:', { code, shop_id });
+
     const { data, error } = await supabase
       .from('client_connections')
       .select('partner_id, partner_key')
@@ -35,7 +34,7 @@ app.get('/', async (req, res) => {
       .single();
 
     if (error || !data) {
-      console.error('Erro ao buscar credenciais:', error);
+      console.error('❌ Erro ao buscar credenciais:', error);
       return res.status(500).send('Erro ao buscar credenciais Shopee.');
     }
 
@@ -63,14 +62,15 @@ app.get('/', async (req, res) => {
 
     console.log('✅ Token recebido com sucesso:', response.data);
 
-    // Atualiza tokens no banco
-    await supabase
+    const updateResult = await supabase
       .from('client_connections')
       .update({
         access_token: response.data.access_token,
         refresh_token: response.data.refresh_token
       })
       .eq('connection_name', 'shopee');
+
+    console.log('🔄 Resultado da atualização do token:', updateResult);
 
     res.send('✅ Callback processado com sucesso!');
   } catch (err) {
@@ -79,7 +79,6 @@ app.get('/', async (req, res) => {
   }
 });
 
-// Pipeline de coleta e normalização
 async function runAll() {
   try {
     console.log('🕜 Iniciando ciclo de coleta e normalização:');
@@ -97,13 +96,9 @@ async function runAll() {
   }
 }
 
-// Executa ao iniciar
 runAll();
-
-// Agenda execução a cada 1 hora
 setInterval(runAll, 1000 * 60 * 60);
 
-// Inicia o servidor
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
