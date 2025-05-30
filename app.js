@@ -1,10 +1,11 @@
-/// app.js
+// app.js
+
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
-const fetchShopee = require('./src/jobs/fetchShopeeOrders');
+const fetchShopeeOrders = require('./src/jobs/fetchShopeeOrders');
 const normalizeShopee = require('./src/jobs/normalizeShopee');
 const fetchMeli = require('./src/jobs/fetchMeliOrders');
 const normalizeMeli = require('./src/jobs/normalizeMeli');
@@ -83,7 +84,7 @@ async function runAll() {
   try {
     console.log('🕜 Iniciando ciclo de coleta e normalização:');
     console.log('› Fetch Shopee');
-    await fetchShopee();
+    await fetchShopeeOrders();
     console.log('› Fetch Mercado Livre');
     await fetchMeli();
     console.log('› Normalize Shopee');

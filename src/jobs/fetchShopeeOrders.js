@@ -1,4 +1,5 @@
 // src/jobs/fetchShopeeOrders.js
+
 const crypto = require('crypto');
 require('dotenv').config();
 const axios = require('axios');
@@ -8,9 +9,6 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// Resto do código aqui...
-
 
 async function fetchShopeeOrders() {
   try {
@@ -72,3 +70,5 @@ async function fetchShopeeOrders() {
     console.error('❌ Erro ao buscar pedidos da Shopee:', err.message);
   }
 }
+
+module.exports = fetchShopeeOrders;
