@@ -1,51 +1,65 @@
-const pool = require('../db/connection');
+// src/jobs/fetchShopeeOrders.js
+
+require('dotenv').config();
 const axios = require('axios');
-const logger = require('../utils/logger');
+const { createClient } = require('@supabase/supabase-js');
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Resto do código aqui...
+
+
 
 async function fetchShopeeOrders() {
   try {
-    const { rows: connections } = await pool.query(`
-      SELECT client_id, access_token, additional_data
-      FROM client_connections
-      WHERE connection_name = 'shopee'
-    `);
+    console.log('🔍 Buscando pedidos da Shopee...');
 
-    for (const conn of connections) {
-      const { client_id, access_token, additional_data } = conn;
-      const partner_id = additional_data.partner_id;
-      const shop_id = additional_data.shop_id;
+    // Buscar token no banco de dados
+    const { data, error } = await supabase
+      .from('client_connections')
+      .select('access_token, client_id')
+      .eq('connection_name', 'shopee')
+      .single();
 
-      const timestamp = Math.floor(Date.now() / 1000);
-
-      const payload = {
-        partner_id,
-        shop_id,
-        access_token,
-        timestamp,
-        order_status: "ALL"
-      };
-
-      const url = `${process.env.SHOPEE_API_BASE_URL}/order/get_order_list`;
-
-      try {
-        const response = await axios.post(url, payload);
-        const orders = response.data.orders || [];
-
-        for (const order of orders) {
-          await pool.query(`
-            INSERT INTO orders_raw_shopee (client_id, raw_data, order_id)
-            VALUES ($1, $2, $3)
-          `, [client_id, order, order.order_sn]);
-
-          logger.info(`Inserido pedido ${order.order_sn} para client ${client_id}`);
-        }
-
-      } catch (err) {
-        logger.error(`Erro na API Shopee client ${client_id}: ${err.message}`);
-      }
+    if (error || !data) {
+      console.error('❌ Erro ao buscar token:', error);
+      return;
     }
+
+    const accessToken = data.access_token;
+    const clientId = data.client_id;
+
+    // EXEMPLO: Pegando pedidos da Shopee
+    const response = await axios.get('https://partner.shopeemobile.com/api/v2/orders/get_order_list', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    const orders = response.data.orders || [];
+
+    if (orders.length === 0) {
+      console.log('📭 Nenhum pedido novo encontrado.');
+      return;
+    }
+
+    // Salvar cada pedido como JSON bruto no banco de dados
+    for (const order of orders) {
+      await supabase.from('orders_raw_shopee').insert({
+        received_at: new Date().toISOString(),
+        client_id: clientId,
+        raw_data: order,
+        order_id: order.order_sn,
+        is_processed: false
+      });
+    }
+
+    console.log(`✅ ${orders.length} pedidos da Shopee salvos no banco de dados.`);
   } catch (err) {
-    logger.error(`Erro geral: ${err.message}`);
+    console.error('❌ Erro ao buscar pedidos da Shopee:', err.message);
   }
 }
 
