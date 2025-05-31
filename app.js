@@ -25,7 +25,7 @@ app.get('/', async (req, res) => {
   }
 
   try {
-    console.log('🔄 Recebendo callback Shopee com code e shop_id:', { code, shop_id });
+    console.log('🔄 Callback Shopee recebido:', { code, shop_id });
 
     const { data, error } = await supabase
       .from('client_connections')
@@ -40,37 +40,38 @@ app.get('/', async (req, res) => {
 
     const partner_id = data.partner_id;
     const partner_key = data.partner_key;
+
     const path = '/api/v2/auth/token/get';
     const timestamp = Math.floor(Date.now() / 1000);
     const baseString = `${partner_id}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', partner_key).update(baseString).digest('hex');
     const url = `https://partner.shopeemobile.com${path}?partner_id=${partner_id}&timestamp=${timestamp}&sign=${sign}`;
 
-    console.log('🌐 URL de autenticação:', url);
+    console.log('🌐 URL autenticação:', url);
 
     const response = await axios.post(
       url,
       {
         code,
         shop_id: Number(shop_id),
-        partner_id: Number(partner_id)
+        partner_id: Number(partner_id),
       },
       {
         headers: { 'Content-Type': 'application/json' }
       }
     );
 
-    console.log('✅ Token recebido com sucesso:', response.data);
+    console.log('✅ Token recebido:', response.data);
 
-    const updateResult = await supabase
+    const updateResponse = await supabase
       .from('client_connections')
       .update({
         access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token
+        refresh_token: response.data.refresh_token,
       })
       .eq('connection_name', 'shopee');
 
-    console.log('🔄 Resultado da atualização do token:', updateResult);
+    console.log('🔄 Atualização do token no banco:', updateResponse);
 
     res.send('✅ Callback processado com sucesso!');
   } catch (err) {
