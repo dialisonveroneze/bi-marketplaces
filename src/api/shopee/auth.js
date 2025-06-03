@@ -29,8 +29,6 @@ function generateAuthUrl() {
     partner_id: SHOPEE_PARTNER_ID_LIVE,
     partner_key: SHOPEE_API_KEY_LIVE,
     timestamp: timestamp,
-    // Note: access_token e shop_id não são usados na assinatura desta API de AUTORIZAÇÃO
-    // por não serem comuns a todas as APIs (neste contexto).
   }, baseStringForAuthSign);
 
   // Constrói a URL de autorização
@@ -58,7 +56,6 @@ async function getAccessToken(code, shop_id, clientId) {
   console.log(`[DEBUG_AUTH] getAccessToken - Code recebido (parcial): ${code ? code.substring(0, 10) + '...' : 'NULO/UNDEFINED'}`);
   console.log(`[DEBUG_AUTH] getAccessToken - Partner ID: ${SHOPEE_PARTNER_ID_LIVE}, Path: ${path}, Timestamp: ${timestamp}`);
 
-  // A base string para a assinatura aqui é a mesma do refresh: partner_id + path + timestamp
   const baseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timestamp}`;
 
   const sign = generateShopeeSignature({
@@ -66,7 +63,6 @@ async function getAccessToken(code, shop_id, clientId) {
     partner_id: SHOPEE_PARTNER_ID_LIVE,
     partner_key: SHOPEE_API_KEY_LIVE,
     timestamp: timestamp,
-    // access_token e shop_id não são usados na assinatura para GetAccessToken
   }, baseString);
 
   const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${SHOPEE_PARTNER_ID_LIVE}&timestamp=${timestamp}&sign=${sign}`;
@@ -94,14 +90,22 @@ async function getAccessToken(code, shop_id, clientId) {
       }
     );
 
-    // DEBUG: Log da resposta RAW da Shopee
+    // --- NOVO LOG CRÍTICO AQUI ---
     console.log('--- DEBUG: Resposta RAW da Shopee para GetAccessToken ---');
     console.log(JSON.stringify(response.data, null, 2));
     console.log('------------------------------------------------------');
+    // --- FIM DO NOVO LOG CRÍTICO ---
 
     // Verifica se 'response' e seus campos esperados existem na resposta da Shopee
     if (!response.data || !response.data.response) {
-        throw new Error('Formato de resposta inesperado da Shopee: objeto "response" ausente.');
+        // Se a Shopee retornar um erro diretamente no nível superior (response.data.error)
+        if (response.data.error || response.data.message) {
+            const shopeeError = response.data.error || 'N/A';
+            const shopeeMessage = response.data.message || 'N/A';
+            throw new Error(`Erro da API Shopee: ${shopeeError} - ${shopeeMessage}. Resposta completa no log acima.`);
+        }
+        // Se não for um erro reconhecido, é um formato inesperado.
+        throw new Error('Formato de resposta inesperado da Shopee: objeto "response" ausente ou inválido.');
     }
 
     const { access_token, expire_in, refresh_token } = response.data.response;
@@ -130,7 +134,7 @@ async function getAccessToken(code, shop_id, clientId) {
         refresh_token: refresh_token,
         access_token_expires_at: newExpiresAt,
         updated_at: new Date().toISOString(),
-      }, { onConflict: ['client_id', 'connection_name', 'shop_id'], ignoreDuplicates: false }) // Atualiza se a conexão já existir
+      }, { onConflict: ['client_id', 'connection_name', 'shop_id'], ignoreDuplicates: false })
       .select();
 
     if (error) {
@@ -143,13 +147,16 @@ async function getAccessToken(code, shop_id, clientId) {
 
   } catch (error) {
     console.error('❌ [getAccessToken] Erro ao obter tokens da Shopee.');
-    if (error.response) {
-      console.error('[DEBUG_AUTH] getAccessToken - Detalhes do erro da API Shopee:', JSON.stringify(error.response.data, null, 2));
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('[DEBUG_AUTH] getAccessToken - Detalhes do erro da API Shopee (Axios response):', JSON.stringify(error.response.data, null, 2));
       console.error(`[DEBUG_AUTH] getAccessToken - Status HTTP: ${error.response.status}`);
+      // Propaga o erro com a mensagem da Shopee, se disponível
+      const shopeeErrorMessage = error.response.data.message || 'Erro desconhecido na resposta da Shopee.';
+      throw new Error(`Falha na obtenção do token: ${shopeeErrorMessage}`);
     } else {
       console.error('[DEBUG_AUTH] getAccessToken - Erro geral:', error.message);
+      throw error;
     }
-    throw error;
   }
 }
 
@@ -182,7 +189,6 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
     partner_id: SHOPEE_PARTNER_ID_LIVE,
     partner_key: SHOPEE_API_KEY_LIVE,
     timestamp: timestamp,
-    // access_token e shop_id não são usados na assinatura para RefreshAccessToken
   }, baseStringForRefreshSign);
 
   const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${SHOPEE_PARTNER_ID_LIVE}&timestamp=${timestamp}&sign=${sign}`;
@@ -210,14 +216,22 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
       }
     );
 
-    // DEBUG: Log da resposta RAW da Shopee
+    // --- NOVO LOG CRÍTICO AQUI ---
     console.log('--- DEBUG: Resposta RAW da Shopee para Refresh Token ---');
     console.log(JSON.stringify(response.data, null, 2));
     console.log('----------------------------------------------------');
+    // --- FIM DO NOVO LOG CRÍTICO ---
 
     // Verifica se 'response' e seus campos esperados existem na resposta da Shopee
     if (!response.data || !response.data.response) {
-        throw new Error('Formato de resposta inesperado da Shopee: objeto "response" ausente.');
+        // Se a Shopee retornar um erro diretamente no nível superior (response.data.error)
+        if (response.data.error || response.data.message) {
+            const shopeeError = response.data.error || 'N/A';
+            const shopeeMessage = response.data.message || 'N/A';
+            throw new Error(`Erro da API Shopee: ${shopeeError} - ${shopeeMessage}. Resposta completa no log acima.`);
+        }
+        // Se não for um erro reconhecido, é um formato inesperado.
+        throw new Error('Formato de resposta inesperado da Shopee: objeto "response" ausente ou inválido.');
     }
 
     const { access_token: newAccessToken, expire_in, refresh_token: newRefreshToken } = response.data.response;
@@ -256,13 +270,16 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
 
   } catch (error) {
     console.error('❌ [refreshShopeeAccessToken] Erro ao refrescar token Shopee.');
-    if (error.response) {
-      console.error('[DEBUG_AUTH] refreshShopeeAccessToken - Detalhes do erro da API Shopee:', JSON.stringify(error.response.data, null, 2));
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('[DEBUG_AUTH] refreshShopeeAccessToken - Detalhes do erro da API Shopee (Axios response):', JSON.stringify(error.response.data, null, 2));
       console.error(`[DEBUG_AUTH] refreshShopeeAccessToken - Status HTTP: ${error.response.status}`);
+      // Propaga o erro com a mensagem da Shopee, se disponível
+      const shopeeErrorMessage = error.response.data.message || 'Erro desconhecido na resposta da Shopee.';
+      throw new Error(`Falha no refresh do token: ${shopeeErrorMessage}`);
     } else {
       console.error('[DEBUG_AUTH] refreshShopeeAccessToken - Erro geral:', error.message);
+      throw error;
     }
-    throw error;
   }
 }
 
