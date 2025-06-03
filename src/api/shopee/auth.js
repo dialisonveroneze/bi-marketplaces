@@ -90,25 +90,17 @@ async function getAccessToken(code, shop_id, clientId) {
       }
     );
 
-    // --- LOG CRÍTICO DA RESPOSTA RAW DA SHOPEE ---
     console.log('--- DEBUG: Resposta RAW da Shopee para GetAccessToken ---');
     console.log(JSON.stringify(response.data, null, 2));
     console.log('------------------------------------------------------');
-    // --- FIM DO LOG CRÍTICO ---
 
-    // Verifica se 'response' e seus campos esperados existem na resposta da Shopee
-    if (!response.data || !response.data.response) {
-        // Se a Shopee retornar um erro diretamente no nível superior (response.data.error)
-        if (response.data.error || response.data.message) {
-            const shopeeError = response.data.error || 'N/A';
-            const shopeeMessage = response.data.message || 'N/A';
-            throw new Error(`Erro da API Shopee: ${shopeeError} - ${shopeeMessage}. Resposta completa no log acima.`);
-        }
-        // Se não for um erro reconhecido, é um formato inesperado.
-        throw new Error('Formato de resposta inesperado da Shopee: objeto "response" ausente ou inválido.');
+    // MUDANÇA AQUI: Desestrutura diretamente de response.data
+    const { access_token, expire_in, refresh_token, error, message } = response.data;
+
+    // Se houver erro ou mensagem de erro no nível superior, trate como erro
+    if (error || message) {
+        throw new Error(`Erro da API Shopee: ${error || 'N/A'} - ${message || 'N/A'}. Resposta completa no log acima.`);
     }
-
-    const { access_token, expire_in, refresh_token } = response.data.response;
 
     if (!access_token || !refresh_token || typeof expire_in === 'undefined') {
         throw new Error(`Dados de token incompletos na resposta da Shopee. Access Token: ${access_token}, Refresh Token: ${refresh_token}, Expire In: ${expire_in}`);
@@ -124,7 +116,7 @@ async function getAccessToken(code, shop_id, clientId) {
     console.log(`  - newExpiresAt: ${newExpiresAt}`);
 
     // Salva ou atualiza os tokens no Supabase
-    const { data, error } = await supabase
+    const { data, error: dbError } = await supabase
       .from('client_connections')
       .upsert({
         client_id: clientId,
@@ -137,9 +129,9 @@ async function getAccessToken(code, shop_id, clientId) {
       }, { onConflict: ['client_id', 'connection_name', 'shop_id'], ignoreDuplicates: false })
       .select();
 
-    if (error) {
-      console.error('❌ [getAccessToken] Erro ao salvar tokens no Supabase:', error.message);
-      throw error;
+    if (dbError) {
+      console.error('❌ [getAccessToken] Erro ao salvar tokens no Supabase:', dbError.message);
+      throw dbError;
     }
 
     console.log('🎉 Tokens salvos/atualizados no Supabase com sucesso.');
@@ -150,7 +142,6 @@ async function getAccessToken(code, shop_id, clientId) {
     if (axios.isAxiosError(error) && error.response) {
       console.error('[DEBUG_AUTH] getAccessToken - Detalhes do erro da API Shopee (Axios response):', JSON.stringify(error.response.data, null, 2));
       console.error(`[DEBUG_AUTH] getAccessToken - Status HTTP: ${error.response.status}`);
-      // Propaga o erro com a mensagem da Shopee, se disponível
       const shopeeErrorMessage = error.response.data.message || 'Erro desconhecido na resposta da Shopee.';
       throw new Error(`Falha na obtenção do token: ${shopeeErrorMessage}`);
     } else {
@@ -216,25 +207,17 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
       }
     );
 
-    // --- LOG CRÍTICO DA RESPOSTA RAW DA SHOPEE ---
     console.log('--- DEBUG: Resposta RAW da Shopee para Refresh Token ---');
     console.log(JSON.stringify(response.data, null, 2));
     console.log('----------------------------------------------------');
-    // --- FIM DO LOG CRÍTICO ---
 
-    // Verifica se 'response' e seus campos esperados existem na resposta da Shopee
-    if (!response.data || !response.data.response) {
-        // Se a Shopee retornar um erro diretamente no nível superior (response.data.error)
-        if (response.data.error || response.data.message) {
-            const shopeeError = response.data.error || 'N/A';
-            const shopeeMessage = response.data.message || 'N/A';
-            throw new Error(`Erro da API Shopee: ${shopeeError} - ${shopeeMessage}. Resposta completa no log acima.`);
-        }
-        // Se não for um erro reconhecido, é um formato inesperado.
-        throw new Error('Formato de resposta inesperado da Shopee: objeto "response" ausente ou inválido.');
+    // MUDANÇA AQUI: Desestrutura diretamente de response.data
+    const { access_token: newAccessToken, expire_in, refresh_token: newRefreshToken, error, message } = response.data;
+
+    // Se houver erro ou mensagem de erro no nível superior, trate como erro
+    if (error || message) {
+        throw new Error(`Erro da API Shopee: ${error || 'N/A'} - ${message || 'N/A'}. Resposta completa no log acima.`);
     }
-
-    const { access_token: newAccessToken, expire_in, refresh_token: newRefreshToken } = response.data.response;
 
     if (!newAccessToken || !newRefreshToken || typeof expire_in === 'undefined') {
         throw new Error(`Dados de token incompletos na resposta da Shopee. Access Token: ${newAccessToken}, Refresh Token: ${newRefreshToken}, Expire In: ${expire_in}`);
@@ -250,7 +233,7 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
     console.log(`  - newExpiresAt: ${newExpiresAt}`);
 
     // Atualiza a tabela client_connections com os novos tokens
-    const { data, error } = await supabase
+    const { data: updatedData, error: dbError } = await supabase
       .from('client_connections')
       .update({
         access_token: newAccessToken,
@@ -260,9 +243,9 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
       })
       .eq('id', connectionId); // Usa o 'id' da conexão para identificar a linha no Supabase
 
-    if (error) {
-      console.error('❌ [refreshShopeeAccessToken] Erro ao atualizar Supabase com novos tokens:', error.message);
-      throw error;
+    if (dbError) {
+      console.error('❌ [refreshShopeeAccessToken] Erro ao atualizar Supabase com novos tokens:', dbError.message);
+      throw dbError;
     }
 
     console.log(`✅ [refreshShopeeAccessToken] Token refrescado e salvo no Supabase para Shop ID: ${shop_id}.`);
@@ -273,7 +256,6 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
     if (axios.isAxiosError(error) && error.response) {
       console.error('[DEBUG_AUTH] refreshShopeeAccessToken - Detalhes do erro da API Shopee (Axios response):', JSON.stringify(error.response.data, null, 2));
       console.error(`[DEBUG_AUTH] refreshShopeeAccessToken - Status HTTP: ${error.response.status}`);
-      // Propaga o erro com a mensagem da Shopee, se disponível
       const shopeeErrorMessage = error.response.data.message || 'Erro desconhecido na resposta da Shopee.';
       throw new Error(`Falha no refresh do token: ${shopeeErrorMessage}`);
     } else {
