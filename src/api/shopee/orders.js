@@ -21,11 +21,11 @@ async function fetchShopeeOrders({ client_id, shop_id, access_token }) {
     access_token: access_token
   });
 
-  const ordersUrl = `${SHOPEE_API_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}&shop_id=${shop_id}&access_token=${access_token}`;
+  // CORREÇÃO AQUI: REORDENAR OS PARÂMETROS DA QUERY STRING ALFABETICAMENTE
+  // (access_token, partner_id, shop_id, timestamp) + sign por último
+  const ordersUrl = `${SHOPEE_API_HOST}${path}?access_token=${access_token}&partner_id=${SHOPEE_PARTNER_ID}&shop_id=${shop_id}&timestamp=${timestamp}&sign=${sign}`;
 
-  // --- NOVO LOG DE DEPURACÃO AQUI ---
-  console.log('DEBUG: Final ordersUrl antes do axios.post:', ordersUrl);
-  // --- FIM DO NOVO LOG ---
+  console.log('DEBUG: Final ordersUrl antes do axios.post (REORDENADA):', ordersUrl);
 
   try {
     const response = await axios.post(
