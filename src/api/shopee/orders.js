@@ -1,7 +1,7 @@
 // src/api/shopee/orders.js
 const axios = require('axios');
 const { supabase } = require('../../database');
-const { generateShopeeSignature } = require('../../utils/security'); // Certifique-se que o caminho está correto
+const { generateShopeeSignature } = require('../../utils/security');
 
 // Variáveis de ambiente - Certifique-se de que estão definidas
 const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE;
@@ -36,11 +36,8 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
     time_to: timestamp,
     time_range_field: 'create_time', // Campo pelo qual a Shopee deve filtrar (create_time ou update_time)
     page_size: 100, // Número de pedidos por página (máximo 100)
-    // response_optional_fields: Inclua aqui os campos que você quer na resposta da Shopee.
-    // É crucial para obter mais do que apenas order_sn e booking_sn.
-    // Consulte a documentação oficial da Shopee API para os campos disponíveis.
-    // Exemplos comuns: 'order_status,payment_info,recipient_address,items,tracking_info'
-    response_optional_fields: 'order_status,payment_info,recipient_address,items',
+    // --- MUDANÇA AQUI: REMOVENDO 'payment_info' de response_optional_fields ---
+    response_optional_fields: 'order_status,recipient_address,items', // Agora sem payment_info
     // cursor: '', // Para paginação de resultados (se houver mais de 100 pedidos)
   };
 
@@ -59,9 +56,6 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
       console.log(`  - response_optional_fields: ${queryParams.response_optional_fields}`);
   }
 
-  // A base string para a assinatura de API de dados da Shopee é:
-  // partner_id + path + timestamp + access_token + shop_id + [outros_parametros_ordenados_alfabeticamente_para_assinatura]
-  // A função generateShopeeSignature deve lidar com a ordenação interna.
   const sign = generateShopeeSignature({
     path: path,
     partner_id: SHOPEE_PARTNER_ID_LIVE,
@@ -69,17 +63,13 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
     timestamp: timestamp,
     access_token: accessToken,
     shop_id: shopId,
-    // Inclua todos os parâmetros de query que são parte da requisição HTTP
     time_from: queryParams.time_from,
     time_to: queryParams.time_to,
     time_range_field: queryParams.time_range_field,
     page_size: queryParams.page_size,
-    response_optional_fields: queryParams.response_optional_fields,
+    response_optional_fields: queryParams.response_optional_fields, // Incluído na assinatura
   });
 
-  // Constrói a URL da requisição de pedidos, garantindo a inclusão de todos os parâmetros
-  // É crucial que a ordem dos parâmetros na URL corresponda à ordem usada para gerar a assinatura.
-  // Shopee exige que os parâmetros da URL estejam em ordem alfabética (exceto sign, que é o último).
   const orderedQueryParams = {
     access_token: accessToken,
     partner_id: queryParams.partner_id,
@@ -90,13 +80,12 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
     time_to: queryParams.time_to,
     timestamp: queryParams.timestamp,
   };
-  // Adiciona response_optional_fields se existir e estiver preenchido
   if (queryParams.response_optional_fields) {
       orderedQueryParams.response_optional_fields = queryParams.response_optional_fields;
   }
 
   const queryString = Object.keys(orderedQueryParams)
-    .sort() // Ordena as chaves alfabeticamente
+    .sort()
     .map(key => `${key}=${orderedQueryParams[key]}`)
     .join('&');
 
@@ -113,7 +102,7 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
     });
 
     console.log('--- DEBUG: Resposta RAW da Shopee para GetOrdersList ---');
-    console.log(JSON.stringify(response.data, null, 2)); // Log da resposta completa para depuração
+    console.log(JSON.stringify(response.data, null, 2));
     console.log(`--- DEBUG: Status HTTP da Resposta de Pedidos: ${response.status} ---`);
     console.log('----------------------------------------------------');
 
@@ -122,26 +111,22 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
       console.log(`[DEBUG_SHOPEE] Encontrados ${orders.length} pedidos.`);
 
       if (orders.length > 0) {
-        // Mapeie os pedidos da Shopee para o formato da sua tabela `orders_raw_shopee`
         const ordersToUpsert = orders.map(order => ({
-          client_id: connectionId, // Sua tabela usa 'client_id' para a conexão
-          order_id: order.order_sn, // Sua tabela usa 'order_id' para o número do pedido
-          raw_data: order, // Salva o objeto de pedido completo (com os campos opcionais) aqui
-          // Você pode adicionar mais campos se eles vierem na resposta e quiser salvá-los diretamente
-          // Exemplo (se 'order_status' e 'create_time' estiverem em response_optional_fields):
-          order_status: order.order_status || null, // Se vier, caso contrário null
-          created_at: order.create_time ? new Date(order.create_time * 1000).toISOString() : null, // Converta timestamp para ISO string
-          updated_at: order.update_time ? new Date(order.update_time * 1000).toISOString() : null, // Converta timestamp para ISO string
-          // is_processed pode ser setado para false por padrão na sua tabela, ou você pode definir aqui se necessário
+          client_id: connectionId,
+          order_id: order.order_sn,
+          raw_data: order, // Salva o objeto de pedido completo (com os campos opcionais agora corretos)
+          order_status: order.order_status || null,
+          created_at: order.create_time ? new Date(order.create_time * 1000).toISOString() : null,
+          updated_at: order.update_time ? new Date(order.update_time * 1000).toISOString() : null,
         }));
 
         console.log(`[DEBUG_SHOPEE] Preparando ${ordersToUpsert.length} pedidos para upsert no Supabase.`);
         
         const { error: insertError } = await supabase
-          .from('orders_raw_shopee') // <--- CORRIGIDO: Nome da sua tabela
+          .from('orders_raw_shopee')
           .upsert(ordersToUpsert, { 
-            onConflict: ['order_id'], // <--- CORRIGIDO: Coluna de conflito na sua tabela
-            ignoreDuplicates: false // Permite a atualização de registros existentes
+            onConflict: ['order_id'],
+            ignoreDuplicates: false
           });
 
         if (insertError) {
@@ -156,17 +141,14 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
       return orders;
 
     } else if (response.data.error || response.data.message) {
-        // Lida com erros retornados pela API da Shopee
         const shopeeError = response.data.error || 'N/A';
         const shopeeMessage = response.data.message || 'N/A';
         throw new Error(`Erro da API Shopee (Pedidos): ${shopeeError} - ${shopeeMessage}. Resposta completa no log acima.`);
     } else {
-        // Lida com formato de resposta inesperado
         throw new Error('Formato de resposta de pedidos inesperado da Shopee.');
     }
 
   } catch (error) {
-    // Lida com erros de rede ou outros erros de requisição
     console.error('❌ [fetchShopeeOrders] Erro ao buscar/salvar pedidos da Shopee:', error.message);
     if (axios.isAxiosError(error) && error.response) {
       console.error('[DEBUG_SHOPEE_ORDERS] Detalhes do erro da API Shopee (Axios response):', JSON.stringify(error.response.data, null, 2));
