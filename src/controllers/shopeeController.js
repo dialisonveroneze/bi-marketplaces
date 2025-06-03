@@ -1,18 +1,23 @@
 // src/controllers/shopeeController.js
 const { supabase } = require('../database');
-const { fetchShopeeOrders } = require('../api/shopee/orders');
 const { refreshShopeeAccessToken } = require('../api/shopee/auth');
+const { fetchShopeeOrders } = require('../api/shopee/orders');
 
+/**
+ * Processa todos os pedidos da Shopee para todas as lojas conectadas.
+ */
 async function processShopeeOrders() {
   console.log('🔄 [processShopeeOrders] Iniciando o processamento de pedidos Shopee...');
+
   try {
+    // 1. Obter todas as conexões Shopee ativas do Supabase
     const { data: connections, error } = await supabase
-      .from('client_connections') // Sua tabela de conexões
+      .from('client_connections')
       .select('*')
-      .eq('connection_name', 'shopee'); // Filtra por conexões Shopee
+      .eq('connection_name', 'shopee');
 
     if (error) {
-      console.error('❌ [processShopeeOrders] Erro ao buscar conexões Shopee:', error.message);
+      console.error('❌ [processShopeeOrders] Erro ao buscar conexões no Supabase:', error.message);
       return;
     }
 
@@ -23,61 +28,49 @@ async function processShopeeOrders() {
 
     console.log(`📦 [processShopeeOrders] Encontradas ${connections.length} conexões Shopee para processar.`);
 
-    for (const connection of connections) {
-      // Desestrutura os dados da conexão, incluindo a nova coluna access_token_expires_at
-      const { id: connectionId, client_id, access_token, refresh_token, additional_data, access_token_expires_at } = connection;
-
-      // Extrai shop_id (pode vir de additional_data ou de uma coluna direta, ajuste conforme seu schema)
-      const shop_id = additional_data?.shop_id || connection.shop_id; 
-
-      if (!shop_id) {
-          console.warn(`⚠️ [processShopeeOrders] Pulando conexão ${connectionId}: Shop ID não encontrado.`);
-          continue;
-      }
-
+    for (const connection of connections) { // Usar for...of para await em loop
+      const { id: connectionId, client_id, shop_id, access_token, refresh_token, access_token_expires_at } = connection;
       console.log(`🛍️ [processShopeeOrders] Processando pedidos para Shop ID: ${shop_id} (Client ID: ${client_id})`);
 
       let currentAccessToken = access_token;
-      let shouldRefresh = false;
-
-      // === Lógica de Refresh do Token ===
+      const expiresAt = new Date(access_token_expires_at);
       const now = new Date();
 
-      if (!access_token_expires_at) {
-          // Se a data de expiração estiver faltando, assume que precisa de refresh
-          console.warn(`⚠️ [processShopeeOrders] Data de expiração do Access Token ausente para Shop ID ${shop_id}. Tentando refrescar...`);
-          shouldRefresh = true;
-      } else {
-          const expiresAt = new Date(access_token_expires_at); // Converte para objeto Date
-          const FIVE_MINUTES_IN_MS = 5 * 60 * 1000; // Refrescar se faltar menos de 5 minutos para expirar
-
-          if (expiresAt.getTime() - now.getTime() < FIVE_MINUTES_IN_MS) {
-              console.log(`⚠️ [processShopeeOrders] Access Token para Shop ID ${shop_id} expirado ou perto de expirar. Tentando refrescar...`);
-              shouldRefresh = true;
-          }
-      }
-
-      if (shouldRefresh) {
+      // Verifica se o access token está expirado ou perto de expirar (ex: nos próximos 5 minutos)
+      if (!currentAccessToken || now >= expiresAt || (expiresAt.getTime() - now.getTime()) < (5 * 60 * 1000)) {
+        console.log(`⚠️ [processShopeeOrders] Access Token para Shop ID ${shop_id} expirado ou perto de expirar. Tentando refrescar...`);
         try {
-          // Passa connectionId para atualizar a linha correta em client_connections
+          // A função refreshShopeeAccessToken já atualiza o banco de dados
+          // e retorna o NOVO access_token.
           currentAccessToken = await refreshShopeeAccessToken(connectionId, shop_id, refresh_token);
+          console.log(`✅ [processShopeeOrders] Access Token refrescado com sucesso para Shop ID ${shop_id}.`);
         } catch (refreshError) {
           console.error(`❌ [processShopeeOrders] Falha ao refrescar token para Shop ID ${shop_id}. Pulando esta conexão.`, refreshError.message);
           continue; // Pula para a próxima conexão se o refresh falhar
         }
+      } else {
+        console.log(`ℹ️ [processShopeeOrders] Access Token para Shop ID ${shop_id} ainda válido.`);
       }
-      // ===========================
 
+      // Agora que temos certeza de ter um access_token válido (currentAccessToken)
+      // e o shop_id numérico, podemos chamar fetchShopeeOrders
       try {
-        await fetchShopeeOrders({ client_id, shop_id, access_token: currentAccessToken }); // Usa o token potencialmente refrescado
-        console.log(`✅ [processShopeeOrders] Pedidos para Shop ID: ${shop_id} processados com sucesso.`);
-      } catch (orderError) {
-        console.error(`❌ [processShopeeOrders] Erro ao buscar pedidos para Shop ID ${shop_id}:`, orderError.message);
+        // MUDANÇA CRÍTICA AQUI: Usando o 'currentAccessToken' e 'shop_id' diretamente
+        const orders = await fetchShopeeOrders(shop_id, currentAccessToken, connectionId);
+        // Implementar a lógica para processar/salvar os 'orders' obtidos se necessário.
+        // A função fetchShopeeOrders já tem um placeholder para salvar no Supabase.
+        console.log(`✅ [processShopeeOrders] Pedidos para Shop ID ${shop_id} processados com sucesso.`);
+      } catch (fetchError) {
+        console.error(`❌ [processShopeeOrders] Erro ao buscar pedidos para Shop ID ${shop_id}:`, fetchError.message);
+        // Não continua para a próxima conexão, já que este erro é específico
+        // do fetch de pedidos para a conexão atual.
       }
     }
+
     console.log('🎉 [processShopeeOrders] Processamento de pedidos Shopee concluído.');
-  } catch (globalError) {
-    console.error('🔥 [processShopeeOrders] Erro inesperado durante o processamento de pedidos Shopee:', globalError.message);
+
+  } catch (mainError) {
+    console.error('🔥 [processShopeeOrders] Erro inesperado no fluxo principal:', mainError.message);
   }
 }
 
