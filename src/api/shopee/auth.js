@@ -90,11 +90,11 @@ async function getAccessToken(code, shop_id, clientId) {
       }
     );
 
-    // --- NOVO LOG CRÍTICO AQUI ---
+    // --- LOG CRÍTICO DA RESPOSTA RAW DA SHOPEE ---
     console.log('--- DEBUG: Resposta RAW da Shopee para GetAccessToken ---');
     console.log(JSON.stringify(response.data, null, 2));
     console.log('------------------------------------------------------');
-    // --- FIM DO NOVO LOG CRÍTICO ---
+    // --- FIM DO LOG CRÍTICO ---
 
     // Verifica se 'response' e seus campos esperados existem na resposta da Shopee
     if (!response.data || !response.data.response) {
@@ -216,11 +216,11 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
       }
     );
 
-    // --- NOVO LOG CRÍTICO AQUI ---
+    // --- LOG CRÍTICO DA RESPOSTA RAW DA SHOPEE ---
     console.log('--- DEBUG: Resposta RAW da Shopee para Refresh Token ---');
     console.log(JSON.stringify(response.data, null, 2));
     console.log('----------------------------------------------------');
-    // --- FIM DO NOVO LOG CRÍTICO ---
+    // --- FIM DO LOG CRÍTICO ---
 
     // Verifica se 'response' e seus campos esperados existem na resposta da Shopee
     if (!response.data || !response.data.response) {
