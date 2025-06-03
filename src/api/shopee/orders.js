@@ -12,19 +12,20 @@ async function fetchShopeeOrders({ client_id, shop_id, access_token }) {
   const path = '/api/v2/order/get_order_list';
   const timestamp = Math.floor(Date.now() / 1000);
 
-  // AGORA PASSAMOS shop_id e access_token para generateShopeeSignature
   const sign = generateShopeeSignature({
     path: path,
     partner_id: SHOPEE_PARTNER_ID,
     partner_key: SHOPEE_API_KEY,
     timestamp: timestamp,
-    shop_id: shop_id,       // NOVO: Adicionado aqui
-    access_token: access_token // NOVO: Adicionado aqui
+    shop_id: shop_id,
+    access_token: access_token
   });
 
-  // A URL já tinha shop_id e access_token, o que é necessário para a requisição.
-  // A assinatura agora também os inclui.
-  const ordersUrl = `<span class="math-inline">\{SHOPEE\_API\_HOST\}</span>{path}?partner_id=<span class="math-inline">\{SHOPEE\_PARTNER\_ID\}&timestamp\=</span>{timestamp}&sign=<span class="math-inline">\{sign\}&shop\_id\=</span>{shop_id}&access_token=${access_token}`;
+  const ordersUrl = `${SHOPEE_API_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}&shop_id=${shop_id}&access_token=${access_token}`;
+
+  // --- NOVO LOG DE DEPURACÃO AQUI ---
+  console.log('DEBUG: Final ordersUrl antes do axios.post:', ordersUrl);
+  // --- FIM DO NOVO LOG ---
 
   try {
     const response = await axios.post(
