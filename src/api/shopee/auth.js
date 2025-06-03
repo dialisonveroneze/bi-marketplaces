@@ -1,13 +1,14 @@
 // src/api/shopee/auth.js
+
 const axios = require('axios');
 const { supabase } = require('../../database');
 const { generateShopeeSignature } = require('../../utils/security');
 
-// Variáveis de ambiente devem estar configuradas no Render
+// Assegure-se de que estas variáveis de ambiente estão configuradas corretamente no Render
 const SHOPEE_AUTH_HOST = process.env.SHOPEE_API_HOST_LIVE; // Ex: https://openplatform.shopee.com.br
 const SHOPEE_PARTNER_ID = process.env.SHOPEE_PARTNER_ID_LIVE;
 const SHOPEE_API_KEY = process.env.SHOPEE_API_KEY_LIVE;
-const SHOPEE_REDIRECT_URL = process.env.SHOPEE_REDIRECT_URL; // URL de callback configurada na Shopee (ex: https://bi-marketplaces.onrender.com/auth/shopee/callback)
+const SHOPEE_REDIRECT_URL = process.env.SHOPEE_REDIRECT_URL_LIVE; // A URL de redirecionamento para sua aplicação (ex: https://bi-marketplaces.onrender.com/auth/shopee/callback)
 
 /**
  * Gera a URL de autorização da Shopee.
@@ -25,9 +26,11 @@ function generateAuthUrl() {
     path: path
   };
 
-  const sign = generateShopeeSignature(params); // Generate signature for auth URL
+  // Usa a customBaseString para a assinatura de auth_partner
+  const baseStringForAuthSign = `${SHOPEE_PARTNER_ID}${path}${timestamp}`;
+  const sign = generateShopeeSignature(params, baseStringForAuthSign); 
 
-  const authUrl = `${SHOPEE_AUTH_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(SHOPEEE_REDIRECT_URL)}`;
+  const authUrl = `${SHOPEE_AUTH_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(SHOPEE_REDIRECT_URL)}`;
   return authUrl;
 }
 
@@ -91,7 +94,7 @@ async function getAccessToken(code, shop_id, clientId) {
     // --- NOVOS LOGS NA getAccessToken ---
     console.log('[DEBUG_AUTH] getAccessToken - Tokens recebidos da Shopee (parcial):', {
         access_token: access_token ? access_token.substring(0, 10) + '...' : 'NULO',
-        refresh_token: refresh_token ? refresh_token.substring(0, 10) + '...' : 'NULO',
+        refresh_token: refresh_token ? refresh_token.substring(0, 30) + '...' : 'NULO', // Aumentado para 30 caracteres
         expire_in: expire_in,
         newExpiresAt: newExpiresAt
     });
@@ -112,7 +115,7 @@ async function getAccessToken(code, shop_id, clientId) {
           // ou remova se tudo for direto. Ex: { original_shop_id: shop_id }
         },
         updated_at: new Date().toISOString(),
-      }, { onConflict: ['client_id', 'connection_name', 'shop_id'] }) // Atualiza se a conexão já existir
+      }, { onConflict: ['client_id', 'connection_name', 'shop_id'], ignoreDuplicates: false }) // Atualiza se a conexão já existir
       .select();
 
     if (error) {
@@ -148,7 +151,7 @@ async function getAccessToken(code, shop_id, clientId) {
 async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
   // --- INÍCIO DOS NOVOS LOGS NA refreshShopeeAccessToken ---
   console.log(`🔄 [refreshShopeeAccessToken] Iniciando processo de refresh para Shop ID: ${shop_id} (Connection ID: ${connectionId})...`);
-  console.log(`[DEBUG_AUTH] refreshShopeeAccessToken - Refresh Token recebido (parcial): ${refreshToken ? refreshToken.substring(0, 10) + '...' : 'NULO/UNDEFINED'}`);
+  console.log(`[DEBUG_AUTH] refreshShopeeAccessToken - Refresh Token recebido: ${refreshToken ? refreshToken.substring(0, 30) + '...' : 'NULO/UNDEFINED'}`); // Aumentado para 30 caracteres
   console.log(`[DEBUG_AUTH] refreshShopeeAccessToken - Partner ID: ${SHOPEE_PARTNER_ID}, Partner Key (parcial): ${SHOPEE_API_KEY ? SHOPEE_API_KEY.substring(0, 5) + '...' : 'NULO/UNDEFINED'}`);
   // --- FIM DOS NOVOS LOGS NA refreshShopeeAccessToken ---
 
@@ -182,7 +185,7 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
   console.log(`[DEBUG_AUTH] refreshShopeeAccessToken - Payload da requisição de refresh:`, {
     shop_id: Number(shop_id),
     partner_id: Number(SHOPEE_PARTNER_ID),
-    refresh_token: refreshToken ? refreshToken.substring(0, 10) + '...' : 'NULO/UNDEFINED',
+    refresh_token: refreshToken ? refreshToken.substring(0, 30) + '...' : 'NULO/UNDEFINED', // Aumentado para 30 caracteres
   });
   // --- FIM DOS NOVOS LOGS ANTES DA REQUISIÇÃO AXIOS ---
 
@@ -210,7 +213,7 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
     // --- NOVOS LOGS DE SUCESSO DE REFRESH ---
     console.log(`✅ [refreshShopeeAccessToken] Resposta bem-sucedida da Shopee para refresh. Novos tokens (parcial):`);
     console.log(`  - newAccessToken: ${newAccessToken ? newAccessToken.substring(0, 10) + '...' : 'NULO'}`);
-    console.log(`  - newRefreshToken: ${newRefreshToken ? newRefreshToken.substring(0, 10) + '...' : 'NULO'}`);
+    console.log(`  - newRefreshToken: ${newRefreshToken ? newRefreshToken.substring(0, 30) + '...' : 'NULO'}`); // Aumentado para 30 caracteres
     console.log(`  - expire_in: ${expire_in} segundos`);
     console.log(`  - newExpiresAt: ${newExpiresAt}`);
     // --- FIM DOS NOVOS LOGS DE SUCESSO DE REFRESH ---

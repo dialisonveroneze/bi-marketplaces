@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { generateAuthUrl, getAccessToken } = require('../api/shopee/auth');
-const { processShopeeOrders } = require('../controllers/shopeeController');
+const { processShopeeOrders } = require('../controllers/shopeeController'); // Importação correta
 
 // Rota para iniciar o processo de autenticação da Shopee
 router.get('/shopee', (req, res) => {
@@ -12,7 +12,7 @@ router.get('/shopee', (req, res) => {
   console.log(authUrl); // A URL será logada aqui
   console.log('---------------------------------------');
   
-  res.redirect(authUrl); // O redirecionamento acontece, enviando o usuário para a página da Shopee
+  res.redirect(authUrl); // Redireciona o navegador do usuário
 });
 
 // Rota de callback da Shopee após a autorização
