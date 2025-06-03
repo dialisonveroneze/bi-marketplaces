@@ -1,8 +1,9 @@
 // src/routes/authRoutes.js
-const { processShopeeOrders } = require('../services/orderProcessor'); // Adicione esta linha
 const express = require('express');
 const router = express.Router();
 const { generateAuthUrl, getAccessToken } = require('../api/shopee/auth');
+// Importação CORRETA: O 'processShopeeOrders' está em '../controllers/shopeeController'
+const { processShopeeOrders } = require('../controllers/shopeeController');
 
 // Rota para iniciar o processo de autenticação da Shopee
 router.get('/shopee', (req, res) => {
@@ -33,8 +34,6 @@ router.get('/shopee/callback', async (req, res) => {
   }
 });
 
-module.exports = router;
-
 // Rota de teste TEMPORÁRIA para disparar a busca de pedidos
 router.get('/shopee/fetch-orders', async (req, res) => {
   console.log('🔥 Requisição para /auth/shopee/fetch-orders recebida!');
@@ -47,4 +46,4 @@ router.get('/shopee/fetch-orders', async (req, res) => {
   }
 });
 
-module.exports = router; // Certifique-se de que esta linha está no final
+module.exports = router; // Apenas uma vez, no final do arquivo

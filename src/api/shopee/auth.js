@@ -44,8 +44,8 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
 
     const { access_token: newAccessToken, expire_in, refresh_token: newRefreshToken } = response.data.response;
 
-    // Store access_token_expires_at in additional_data as a timestamp or ISO string
-    const newExpiresAt = new Date(Date.now() + expire_in * 1000);
+    // Calcula a nova data de expiração
+    const newExpiresAt = new Date(Date.now() + expire_in * 1000).toISOString();
 
     // Update the client_connections table
     const { data, error } = await supabase
@@ -53,7 +53,7 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
       .update({
         access_token: newAccessToken,
         refresh_token: newRefreshToken, // Always update the refresh token too, it can change
-        additional_data: { access_token_expires_at: newExpiresAt.toISOString() }, // Store in additional_data
+        access_token_expires_at: newExpiresAt, // <-- AGORA SALVANDO DIRETAMENTE NA COLUNA!
         updated_at: new Date().toISOString(),
       })
       .eq('id', connectionId); // Use 'id' to target the specific connection
