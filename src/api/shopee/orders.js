@@ -21,16 +21,20 @@ async function fetchShopeeOrders({ client_id, shop_id, access_token }) {
     access_token: access_token
   });
 
-  // CORREÇÃO AQUI: REORDENAR OS PARÂMETROS DA QUERY STRING ALFABETICAMENTE
-  // (access_token, partner_id, shop_id, timestamp) + sign por último
-  const ordersUrl = `${SHOPEE_API_HOST}${path}?access_token=${access_token}&partner_id=${SHOPEE_PARTNER_ID}&shop_id=${shop_id}&timestamp=${timestamp}&sign=${sign}`;
+  // Revertendo a URL para a estrutura mais básica que a Shopee V2 geralmente aceita para a query string
+  // com sign sempre por último. Os outros parâmetros devem ir no corpo.
+  // Vamos deixar apenas o necessário para a URL: partner_id, timestamp e sign.
+  // shop_id e access_token estarão apenas no corpo da requisição POST.
+  const ordersUrl = `${SHOPEE_API_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}`;
 
-  console.log('DEBUG: Final ordersUrl antes do axios.post (REORDENADA):', ordersUrl);
+  console.log('DEBUG: Final ordersUrl antes do axios.post (simplificada na query):', ordersUrl);
 
   try {
     const response = await axios.post(
       ordersUrl,
       {
+        // NO CORPO: Adicione os parâmetros que são esperados aqui
+        // (shop_id e access_token são geralmente esperados no corpo para GET Order List)
         partner_id: Number(SHOPEE_PARTNER_ID),
         shop_id: Number(shop_id),
         access_token: access_token,
