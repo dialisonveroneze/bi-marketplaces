@@ -1,6 +1,5 @@
 // src/api/shopee/orders.js
 const axios = require('axios');
-// No need for crypto directly if generateShopeeSignature handles it
 const { supabase } = require('../../database');
 const { generateShopeeSignature } = require('../../utils/security');
 
@@ -10,32 +9,27 @@ const SHOPEE_PARTNER_ID = process.env.SHOPEE_PARTNER_ID_LIVE;
 const SHOPEE_API_KEY = process.env.SHOPEE_API_KEY_LIVE; // A Partner Key é a API Key para a assinatura
 
 async function fetchShopeeOrders({ client_id, shop_id, access_token }) {
-  // Verifique o manual da Shopee para o caminho exato do endpoint de pedidos.
-  // Exemplo para 'Get Order List': /api/v2/order/get_order_list
   const path = '/api/v2/order/get_order_list';
   const timestamp = Math.floor(Date.now() / 1000);
 
-  // A assinatura é gerada com partner_id e partner_key
   const sign = generateShopeeSignature({
     path: path,
     partner_id: SHOPEE_PARTNER_ID,
     partner_key: SHOPEE_API_KEY,
     timestamp: timestamp,
-    // Em algumas APIs da Shopee, shop_id e access_token também precisam ir na assinatura.
-    // Para get_order_list, geralmente não. Verifique a documentação da Shopee.
-    // Se precisar, seria algo como: shop_id: shop_id, access_token: access_token
   });
 
-  const ordersUrl = `${SHOPEE_API_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}`;
+  // CORREÇÃO AQUI: Adicionando shop_id e access_token à URL da requisição GET/POST
+  const ordersUrl = `${SHOPEE_API_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}&shop_id=${shop_id}&access_token=${access_token}`;
 
   try {
     const response = await axios.post(
       ordersUrl,
       {
-        // Os parâmetros do corpo da requisição POST
-        partner_id: Number(SHOPEE_PARTNER_ID),
-        shop_id: Number(shop_id),
-        access_token: access_token,
+        // Os parâmetros do corpo da requisição POST (alguns podem ser redundantes se já estiverem na URL)
+        partner_id: Number(SHOPEE_PARTNER_ID), // Geralmente requerido no corpo também
+        shop_id: Number(shop_id), // Geralmente requerido no corpo também
+        access_token: access_token, // Geralmente requerido no corpo também
         page_size: 20, // Conforme seu requisito, pode ajustar
         // Outros parâmetros como 'time_range_field', 'time_from', 'time_to' podem ser adicionados aqui
         // para buscar pedidos em um período específico, caso contrário, pega o padrão.
