@@ -3,9 +3,10 @@ const axios = require('axios');
 const { generateShopeeSignature } = require('../../utils/security');
 const { upsertClientConnection } = require('../../database');
 
-const SHOPEE_AUTH_HOST = process.env.SHOPEE_AUTH_HOST_LIVE; // Use _LIVE para produção
+// Carrega as variáveis de ambiente com o sufixo _LIVE para o ambiente de produção
+const SHOPEE_AUTH_HOST = process.env.SHOPEE_AUTH_HOST_LIVE;
 const SHOPEE_PARTNER_ID = process.env.SHOPEE_PARTNER_ID_LIVE;
-const SHOPEE_API_KEY = process.env.SHOPEE_API_KEY_LIVE;
+const SHOPEE_API_KEY = process.env.SHOPEE_API_KEY_LIVE; // Sua chave API (partner_key)
 const SHOPEE_REDIRECT_URL = process.env.SHOPEE_REDIRECT_URL_LIVE;
 
 
@@ -16,7 +17,14 @@ const SHOPEE_REDIRECT_URL = process.env.SHOPEE_REDIRECT_URL_LIVE;
 function generateAuthUrl() {
   const path = '/api/v2/shop/auth_partner';
   const timestamp = Math.floor(Date.now() / 1000); // Unix timestamp em segundos
-  const sign = generateShopeeSignature(SHOPEE_API_KEY, path, timestamp);
+
+  // CORREÇÃO: Passando um objeto com propriedades nomeadas para generateShopeeSignature
+  const sign = generateShopeeSignature({
+    partner_key: SHOPEE_API_KEY, // Sua chave API
+    path: path,
+    partner_id: SHOPEE_PARTNER_ID,
+    timestamp: timestamp
+  });
 
   const authUrl = `${SHOPEE_AUTH_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}&redirect=${SHOPEE_REDIRECT_URL}`;
   return authUrl;
@@ -32,7 +40,14 @@ function generateAuthUrl() {
 async function getAccessToken(code, shopId, clientId) {
   const path = '/api/v2/auth/token/get';
   const timestamp = Math.floor(Date.now() / 1000); // Unix timestamp em segundos
-  const sign = generateShopeeSignature(SHOPEE_API_KEY, path, timestamp);
+
+  // CORREÇÃO: Passando um objeto com propriedades nomeadas para generateShopeeSignature
+  const sign = generateShopeeSignature({
+    partner_key: SHOPEE_API_KEY,
+    path: path,
+    partner_id: SHOPEE_PARTNER_ID,
+    timestamp: timestamp
+  });
 
   const url = `${SHOPEE_AUTH_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}`;
   const body = {
@@ -80,7 +95,14 @@ async function getAccessToken(code, shopId, clientId) {
 async function refreshAccessToken(refreshToken, shopId, clientId) {
   const path = '/api/v2/auth/access_token/get'; // Note o path diferente
   const timestamp = Math.floor(Date.now() / 1000); // Unix timestamp em segundos
-  const sign = generateShopeeSignature(SHOPEE_API_KEY, path, timestamp);
+
+  // CORREÇÃO: Passando um objeto com propriedades nomeadas para generateShopeeSignature
+  const sign = generateShopeeSignature({
+    partner_key: SHOPEE_API_KEY,
+    path: path,
+    partner_id: SHOPEE_PARTNER_ID,
+    timestamp: timestamp
+  });
 
   const url = `${SHOPEE_AUTH_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}`;
   const body = {
