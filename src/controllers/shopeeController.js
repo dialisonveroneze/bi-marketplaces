@@ -4,82 +4,80 @@ const { fetchShopeeOrders } = require('../api/shopee/orders');
 const { refreshShopeeAccessToken } = require('../api/shopee/auth');
 
 async function processShopeeOrders() {
-  console.log('🔄 [processShopeeOrders] Starting Shopee order processing...');
+  console.log('🔄 [processShopeeOrders] Iniciando o processamento de pedidos Shopee...');
   try {
     const { data: connections, error } = await supabase
-      .from('client_connections') // Changed table name
+      .from('client_connections')
       .select('*')
-      .eq('connection_name', 'shopee'); // Filter for Shopee connections
+      .eq('connection_name', 'shopee');
 
     if (error) {
-      console.error('❌ [processShopeeOrders] Error fetching Shopee connections:', error.message);
+      console.error('❌ [processShopeeOrders] Erro ao buscar conexões Shopee:', error.message);
       return;
     }
 
     if (!connections || connections.length === 0) {
-      console.log('📦 [processShopeeOrders] No Shopee connections found to process.');
+      console.log('📦 [processShopeeOrders] Nenhuma conexão Shopee encontrada para processar.');
       return;
     }
 
-    console.log(`📦 [processShopeeOrders] Found ${connections.length} Shopee connections to process.`);
+    console.log(`📦 [processShopeeOrders] Encontradas ${connections.length} conexões Shopee para processar.`);
 
     for (const connection of connections) {
+      // Acesse access_token_expires_at DIRETAMENTE do objeto 'connection'
       const { id: connectionId, client_id, access_token, refresh_token, additional_data, access_token_expires_at } = connection;
 
       // Extract shop_id from additional_data or ensure it's a direct column if needed
-      // Assuming shop_id is stored in additional_data or directly on the connection object.
-      // If shop_id is a direct column on client_connections, just use connection.shop_id
-      const shop_id = additional_data?.shop_id || connection.shop_id; // Adjust based on your schema
+      const shop_id = additional_data?.shop_id || connection.shop_id;
 
       if (!shop_id) {
-          console.warn(`⚠️ [processShopeeOrders] Skipping connection ${connectionId}: No shop_id found.`);
+          console.warn(`⚠️ [processShopeeOrders] Pulando conexão ${connectionId}: Shop ID não encontrado.`);
           continue;
       }
 
-      console.log(`🛍️ [processShopeeOrders] Processing orders for Shop ID: ${shop_id} (Client ID: ${client_id})`);
+      console.log(`🛍️ [processShopeeOrders] Processando pedidos para Shop ID: ${shop_id} (Client ID: ${client_id})`);
 
       let currentAccessToken = access_token;
-      let accessTokenExpiresAt = additional_data?.access_token_expires_at; // Get from additional_data
-
-      // === Token Refresh Logic ===
-      const now = new Date();
       let shouldRefresh = false;
 
-      if (!accessTokenExpiresAt) {
-          // If expiration date is missing, assume it needs refresh
-          console.warn(`⚠️ [processShopeeOrders] Access Token expiration date missing for Shop ID ${shop_id}. Attempting refresh...`);
+      // === Lógica de Refresh do Token ===
+      const now = new Date();
+
+      if (!access_token_expires_at) {
+          console.warn(`⚠️ [processShopeeOrders] Data de expiração do Access Token não encontrada para Shop ID ${shop_id}. Tentando refresh...`);
           shouldRefresh = true;
       } else {
-          const expiresAt = new Date(accessTokenExpiresAt);
-          const FIVE_MINUTES_IN_MS = 5 * 60 * 1000; // Refresh if less than 5 minutes to expire
+          const expiresAt = new Date(access_token_expires_at); // Converte para objeto Date
+          const FIVE_MINUTES_IN_MS = 5 * 60 * 1000; // Refrescar se faltar menos de 5 minutos para expirar
 
           if (expiresAt.getTime() - now.getTime() < FIVE_MINUTES_IN_MS) {
-              console.log(`⚠️ [processShopeeOrders] Access Token for Shop ID ${shop_id} expired or close to expiring. Attempting refresh...`);
+              console.log(`⚠️ [processShopeeOrders] Access Token para Shop ID ${shop_id} expirado ou próximo de expirar. Tentando refresh...`);
               shouldRefresh = true;
           }
       }
 
       if (shouldRefresh) {
         try {
-          // Pass connectionId to update the correct row in client_connections
+          // Passa connectionId para atualizar a linha correta em client_connections
           currentAccessToken = await refreshShopeeAccessToken(connectionId, shop_id, refresh_token);
+          console.log(`✅ [processShopeeOrders] Token refreshed successfully for Shop ID ${shop_id}.`);
         } catch (refreshError) {
-          console.error(`❌ [processShopeeOrders] Failed to refresh token for Shop ID ${shop_id}. Skipping this connection.`);
-          continue; // Skip to the next connection if refresh fails
+          console.error(`❌ [processShopeeOrders] Falha ao refrescar token para Shop ID ${shop_id}. Pulando esta conexão.`);
+          continue; // Pula para a próxima conexão se o refresh falhar
         }
       }
       // ===========================
 
       try {
-        await fetchShopeeOrders({ client_id, shop_id, access_token: currentAccessToken }); // Use the potentially refreshed token
-        console.log(`✅ [processShopeeOrders] Orders for Shop ID: ${shop_id} processed successfully.`);
+        await fetchShopeeOrders({ client_id, shop_id, access_token: currentAccessToken }); // Usa o token potencialmente refrescado
+        console.log(`✅ [processShopeeOrders] Pedidos para Shop ID: ${shop_id} processados com sucesso.`);
       } catch (orderError) {
-        console.error(`❌ [processShopeeOrders] Error fetching orders for Shop ID ${shop_id}:`, orderError.message);
+        console.error(`❌ [processShopeeOrders] Erro ao buscar pedidos para Shop ID ${shop_id}:`, orderError.message);
       }
     }
-    console.log('🎉 [processShopeeOrders] Shopee order processing completed.');
+    console.log('🎉 [processShopeeOrders] Processamento de pedidos Shopee concluído.');
   } catch (globalError) {
-    console.error('🔥 [processShopeeOrders] Unexpected error during Shopee order processing:', globalError.message);
+    console.error('🔥 [processShopeeOrders] Erro inesperado durante o processamento de pedidos Shopee:', globalError.message);
   }
 }
 
