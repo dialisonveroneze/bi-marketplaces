@@ -7,9 +7,9 @@ async function processShopeeOrders() {
   console.log('🔄 [processShopeeOrders] Iniciando o processamento de pedidos Shopee...');
   try {
     const { data: connections, error } = await supabase
-      .from('client_connections')
+      .from('client_connections') // Sua tabela de conexões
       .select('*')
-      .eq('connection_name', 'shopee');
+      .eq('connection_name', 'shopee'); // Filtra por conexões Shopee
 
     if (error) {
       console.error('❌ [processShopeeOrders] Erro ao buscar conexões Shopee:', error.message);
@@ -24,11 +24,11 @@ async function processShopeeOrders() {
     console.log(`📦 [processShopeeOrders] Encontradas ${connections.length} conexões Shopee para processar.`);
 
     for (const connection of connections) {
-      // Acesse access_token_expires_at DIRETAMENTE do objeto 'connection'
+      // Desestrutura os dados da conexão, incluindo a nova coluna access_token_expires_at
       const { id: connectionId, client_id, access_token, refresh_token, additional_data, access_token_expires_at } = connection;
 
-      // Extract shop_id from additional_data or ensure it's a direct column if needed
-      const shop_id = additional_data?.shop_id || connection.shop_id;
+      // Extrai shop_id (pode vir de additional_data ou de uma coluna direta, ajuste conforme seu schema)
+      const shop_id = additional_data?.shop_id || connection.shop_id; 
 
       if (!shop_id) {
           console.warn(`⚠️ [processShopeeOrders] Pulando conexão ${connectionId}: Shop ID não encontrado.`);
@@ -44,14 +44,15 @@ async function processShopeeOrders() {
       const now = new Date();
 
       if (!access_token_expires_at) {
-          console.warn(`⚠️ [processShopeeOrders] Data de expiração do Access Token não encontrada para Shop ID ${shop_id}. Tentando refresh...`);
+          // Se a data de expiração estiver faltando, assume que precisa de refresh
+          console.warn(`⚠️ [processShopeeOrders] Data de expiração do Access Token ausente para Shop ID ${shop_id}. Tentando refrescar...`);
           shouldRefresh = true;
       } else {
           const expiresAt = new Date(access_token_expires_at); // Converte para objeto Date
           const FIVE_MINUTES_IN_MS = 5 * 60 * 1000; // Refrescar se faltar menos de 5 minutos para expirar
 
           if (expiresAt.getTime() - now.getTime() < FIVE_MINUTES_IN_MS) {
-              console.log(`⚠️ [processShopeeOrders] Access Token para Shop ID ${shop_id} expirado ou próximo de expirar. Tentando refresh...`);
+              console.log(`⚠️ [processShopeeOrders] Access Token para Shop ID ${shop_id} expirado ou perto de expirar. Tentando refrescar...`);
               shouldRefresh = true;
           }
       }
@@ -60,9 +61,8 @@ async function processShopeeOrders() {
         try {
           // Passa connectionId para atualizar a linha correta em client_connections
           currentAccessToken = await refreshShopeeAccessToken(connectionId, shop_id, refresh_token);
-          console.log(`✅ [processShopeeOrders] Token refreshed successfully for Shop ID ${shop_id}.`);
         } catch (refreshError) {
-          console.error(`❌ [processShopeeOrders] Falha ao refrescar token para Shop ID ${shop_id}. Pulando esta conexão.`);
+          console.error(`❌ [processShopeeOrders] Falha ao refrescar token para Shop ID ${shop_id}. Pulando esta conexão.`, refreshError.message);
           continue; // Pula para a próxima conexão se o refresh falhar
         }
       }
