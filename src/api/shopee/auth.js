@@ -15,7 +15,7 @@ const SHOPEE_REDIRECT_URL = process.env.SHOPEE_REDIRECT_URL_LIVE; // A URL de re
  * @returns {string} A URL de autorização.
  */
 function generateAuthUrl() {
-  const path = '/api/v2/shop/auth_partner';
+  const path = '/api/v2/shop/auth_partner'; // CUIDADO: Este é o path para a URL de AUTORIZAÇÃO, não para API de tokens.
   const timestamp = Math.floor(Date.now() / 1000); // Current timestamp in seconds
 
   const params = {
@@ -42,7 +42,7 @@ function generateAuthUrl() {
  * @returns {object} Os tokens recebidos da Shopee.
  */
 async function getAccessToken(code, shop_id, clientId) {
-  const path = '/api/v2/auth/token_material'; // Endpoint para obter token material
+  const path = '/api/v2/auth/token/get'; // <-- CORRIGIDO AQUI: De 'token_material' para 'token/get'
   const timestamp = Math.floor(Date.now() / 1000);
 
   // --- NOVOS LOGS NA getAccessToken ---
@@ -86,7 +86,7 @@ async function getAccessToken(code, shop_id, clientId) {
       }
     );
 
-    const { access_token, expire_in, refresh_token } = response.data.response;
+    const { access_token, expire_in, refresh_token } = response.data.response; // A documentação mostra `response` aninhado
 
     // Calcula a nova data de expiração
     const newExpiresAt = new Date(Date.now() + expire_in * 1000).toISOString();
@@ -155,7 +155,7 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
   console.log(`[DEBUG_AUTH] refreshShopeeAccessToken - Partner ID: ${SHOPEE_PARTNER_ID}, Partner Key (parcial): ${SHOPEE_API_KEY ? SHOPEE_API_KEY.substring(0, 5) + '...' : 'NULO/UNDEFINED'}`);
   // --- FIM DOS NOVOS LOGS NA refreshShopeeAccessToken ---
 
-  const path = '/api/v2/auth/access_token';
+  const path = '/api/v2/auth/access_token/get'; // <-- CORRIGIDO AQUI: De 'access_token' para 'access_token/get'
   const timestamp = Math.floor(Date.now() / 1000);
 
   // Para refresh_token, a baseString para assinatura é partner_id + path + timestamp
@@ -205,7 +205,7 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
       }
     );
 
-    const { access_token: newAccessToken, expire_in, refresh_token: newRefreshToken } = response.data.response;
+    const { access_token: newAccessToken, expire_in, refresh_token: newRefreshToken } = response.data.response; // A documentação mostra `response` aninhado
 
     // Calcula a nova data de expiração
     const newExpiresAt = new Date(Date.now() + expire_in * 1000).toISOString();
