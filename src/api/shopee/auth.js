@@ -1,5 +1,4 @@
 // src/api/shopee/auth.js
-
 const axios = require('axios');
 const { supabase } = require('../../database');
 const { generateShopeeSignature } = require('../../utils/security');
@@ -28,7 +27,7 @@ function generateAuthUrl() {
 
   const sign = generateShopeeSignature(params); // Generate signature for auth URL
 
-  const authUrl = `${SHOPEE_AUTH_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(SHOPEE_REDIRECT_URL)}`;
+  const authUrl = `${SHOPEE_AUTH_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(SHOPEEE_REDIRECT_URL)}`;
   return authUrl;
 }
 
@@ -43,6 +42,12 @@ async function getAccessToken(code, shop_id, clientId) {
   const path = '/api/v2/auth/token_material'; // Endpoint para obter token material
   const timestamp = Math.floor(Date.now() / 1000);
 
+  // --- NOVOS LOGS NA getAccessToken ---
+  console.log('[DEBUG_AUTH] getAccessToken - Iniciando processo para Shop ID:', shop_id);
+  console.log('[DEBUG_AUTH] getAccessToken - code recebido (parcial):', code ? code.substring(0, 10) + '...' : 'NULO/UNDEFINED');
+  console.log('[DEBUG_AUTH] getAccessToken - partner_id:', SHOPEE_PARTNER_ID, 'path:', path, 'timestamp:', timestamp);
+  // --- FIM DOS NOVOS LOGS NA getAccessToken ---
+
   const baseString = `${SHOPEE_PARTNER_ID}${path}${timestamp}`; // Base string para a assinatura
   const sign = generateShopeeSignature({
     path: path,
@@ -52,6 +57,15 @@ async function getAccessToken(code, shop_id, clientId) {
   }, baseString);
 
   const url = `${SHOPEE_AUTH_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}`;
+
+  // --- NOVOS LOGS NA getAccessToken ---
+  console.log('[DEBUG_AUTH] getAccessToken - URL para requisição do token:', url);
+  console.log('[DEBUG_AUTH] getAccessToken - Payload da requisição:', {
+    code: code ? code.substring(0, 10) + '...' : 'NULO/UNDEFINED',
+    shop_id: Number(shop_id),
+    partner_id: Number(SHOPEE_PARTNER_ID),
+  });
+  // --- FIM DOS NOVOS LOGS NA getAccessToken ---
 
   try {
     const response = await axios.post(
@@ -74,6 +88,15 @@ async function getAccessToken(code, shop_id, clientId) {
     // Calcula a nova data de expiração
     const newExpiresAt = new Date(Date.now() + expire_in * 1000).toISOString();
 
+    // --- NOVOS LOGS NA getAccessToken ---
+    console.log('[DEBUG_AUTH] getAccessToken - Tokens recebidos da Shopee (parcial):', {
+        access_token: access_token ? access_token.substring(0, 10) + '...' : 'NULO',
+        refresh_token: refresh_token ? refresh_token.substring(0, 10) + '...' : 'NULO',
+        expire_in: expire_in,
+        newExpiresAt: newExpiresAt
+    });
+    // --- FIM DOS NOVOS LOGS NA getAccessToken ---
+
     // Salva os tokens e a data de expiração no Supabase
     const { data, error } = await supabase
       .from('client_connections')
@@ -94,6 +117,9 @@ async function getAccessToken(code, shop_id, clientId) {
 
     if (error) {
       console.error('❌ [getAccessToken] Erro ao salvar tokens no Supabase:', error.message);
+      // --- NOVO LOG DE ERRO DE SUPABASE ---
+      console.error('[DEBUG_AUTH] getAccessToken - Detalhes do erro Supabase:', error);
+      // --- FIM NOVO LOG DE ERRO DE SUPABASE ---
       throw error;
     }
 
@@ -102,6 +128,12 @@ async function getAccessToken(code, shop_id, clientId) {
 
   } catch (error) {
     console.error('❌ [getAccessToken] Erro ao obter tokens da Shopee:', error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
+    // --- NOVO LOG DE ERRO DE AXIOS ---
+    if (error.response) {
+      console.error('[DEBUG_AUTH] getAccessToken - Axios response error data:', error.response.data);
+      console.error('[DEBUG_AUTH] getAccessToken - Axios response status:', error.response.status);
+    }
+    // --- FIM NOVO LOG DE ERRO DE AXIOS ---
     throw error;
   }
 }
@@ -114,11 +146,28 @@ async function getAccessToken(code, shop_id, clientId) {
  * @returns {string} O novo access_token.
  */
 async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
+  // --- INÍCIO DOS NOVOS LOGS NA refreshShopeeAccessToken ---
+  console.log(`🔄 [refreshShopeeAccessToken] Iniciando processo de refresh para Shop ID: ${shop_id} (Connection ID: ${connectionId})...`);
+  console.log(`[DEBUG_AUTH] refreshShopeeAccessToken - Refresh Token recebido (parcial): ${refreshToken ? refreshToken.substring(0, 10) + '...' : 'NULO/UNDEFINED'}`);
+  console.log(`[DEBUG_AUTH] refreshShopeeAccessToken - Partner ID: ${SHOPEE_PARTNER_ID}, Partner Key (parcial): ${SHOPEE_API_KEY ? SHOPEE_API_KEY.substring(0, 5) + '...' : 'NULO/UNDEFINED'}`);
+  // --- FIM DOS NOVOS LOGS NA refreshShopeeAccessToken ---
+
   const path = '/api/v2/auth/access_token';
   const timestamp = Math.floor(Date.now() / 1000);
 
   // Para refresh_token, a baseString para assinatura é partner_id + path + timestamp
   const baseStringForRefreshSign = `${SHOPEE_PARTNER_ID}${path}${timestamp}`;
+
+  // --- NOVOS LOGS ANTES DA GERAÇÃO DA ASSINATURA ---
+  console.log(`[DEBUG_AUTH] refreshShopeeAccessToken - Base string para assinatura: "${baseStringForRefreshSign}"`);
+  console.log(`[DEBUG_AUTH] refreshShopeeAccessToken - Parâmetros para generateShopeeSignature: `, {
+    path: path,
+    partner_id: SHOPEE_PARTNER_ID,
+    partner_key: SHOPEE_API_KEY,
+    timestamp: timestamp,
+  });
+  // --- FIM DOS NOVOS LOGS ANTES DA GERAÇÃO DA ASSINATURA ---
+
   const sign = generateShopeeSignature({
     path: path,
     partner_id: SHOPEE_PARTNER_ID,
@@ -128,8 +177,16 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
 
   const url = `${SHOPEE_AUTH_HOST}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}`;
 
+  // --- NOVOS LOGS ANTES DA REQUISIÇÃO AXIOS ---
+  console.log(`[DEBUG_AUTH] refreshShopeeAccessToken - URL da requisição de refresh: ${url}`);
+  console.log(`[DEBUG_AUTH] refreshShopeeAccessToken - Payload da requisição de refresh:`, {
+    shop_id: Number(shop_id),
+    partner_id: Number(SHOPEE_PARTNER_ID),
+    refresh_token: refreshToken ? refreshToken.substring(0, 10) + '...' : 'NULO/UNDEFINED',
+  });
+  // --- FIM DOS NOVOS LOGS ANTES DA REQUISIÇÃO AXIOS ---
+
   try {
-    console.log(`🔄 [refreshShopeeAccessToken] Tentando refresh de token para Shop ID: ${shop_id} (Connection ID: ${connectionId})...`);
     const response = await axios.post(
       url,
       {
@@ -150,6 +207,14 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
     // Calcula a nova data de expiração
     const newExpiresAt = new Date(Date.now() + expire_in * 1000).toISOString();
 
+    // --- NOVOS LOGS DE SUCESSO DE REFRESH ---
+    console.log(`✅ [refreshShopeeAccessToken] Resposta bem-sucedida da Shopee para refresh. Novos tokens (parcial):`);
+    console.log(`  - newAccessToken: ${newAccessToken ? newAccessToken.substring(0, 10) + '...' : 'NULO'}`);
+    console.log(`  - newRefreshToken: ${newRefreshToken ? newRefreshToken.substring(0, 10) + '...' : 'NULO'}`);
+    console.log(`  - expire_in: ${expire_in} segundos`);
+    console.log(`  - newExpiresAt: ${newExpiresAt}`);
+    // --- FIM DOS NOVOS LOGS DE SUCESSO DE REFRESH ---
+
     // Atualiza a tabela client_connections com os novos tokens
     const { data, error } = await supabase
       .from('client_connections')
@@ -163,6 +228,9 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
 
     if (error) {
       console.error('❌ [refreshShopeeAccessToken] Erro ao atualizar Supabase com novos tokens:', error.message);
+      // --- NOVO LOG DE ERRO DE SUPABASE ---
+      console.error('[DEBUG_AUTH] refreshShopeeAccessToken - Detalhes do erro Supabase:', error);
+      // --- FIM NOVO LOG DE ERRO DE SUPABASE ---
       throw error;
     }
 
@@ -171,6 +239,12 @@ async function refreshShopeeAccessToken(connectionId, shop_id, refreshToken) {
 
   } catch (error) {
     console.error('❌ [refreshShopeeAccessToken] Erro ao refrescar token Shopee:', error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
+    // --- NOVO LOG DE ERRO DE AXIOS PARA REFRESH ---
+    if (error.response) {
+      console.error('[DEBUG_AUTH] refreshShopeeAccessToken - Axios response error data:', error.response.data);
+      console.error('[DEBUG_AUTH] refreshShopeeAccessToken - Axios response status:', error.response.status);
+    }
+    // --- FIM NOVO LOG DE ERRO DE AXIOS PARA REFRESH ---
     throw error;
   }
 }
