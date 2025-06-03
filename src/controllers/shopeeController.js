@@ -24,7 +24,7 @@ async function processShopeeOrders() {
     console.log(`📦 [processShopeeOrders] Found ${connections.length} Shopee connections to process.`);
 
     for (const connection of connections) {
-      const { id: connectionId, client_id, access_token, refresh_token, additional_data } = connection;
+      const { id: connectionId, client_id, access_token, refresh_token, additional_data, access_token_expires_at } = connection;
 
       // Extract shop_id from additional_data or ensure it's a direct column if needed
       // Assuming shop_id is stored in additional_data or directly on the connection object.
