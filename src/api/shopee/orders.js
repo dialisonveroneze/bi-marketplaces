@@ -36,8 +36,9 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
     time_to: timestamp,
     time_range_field: 'create_time', // Campo pelo qual a Shopee deve filtrar (create_time ou update_time)
     page_size: 100, // Número de pedidos por página (máximo 100)
-    // --- MUDANÇA AQUI: REMOVENDO 'payment_info' de response_optional_fields ---
-    response_optional_fields: 'order_status,recipient_address,items', // Agora sem payment_info
+    // --- MUDANÇA AQUI: REMOVENDO 'recipient_address' de response_optional_fields ---
+    // Deixando apenas 'order_status' e 'items'. Se 'items' der erro, removemos também.
+    response_optional_fields: 'order_status,items',
     // cursor: '', // Para paginação de resultados (se houver mais de 100 pedidos)
   };
 
