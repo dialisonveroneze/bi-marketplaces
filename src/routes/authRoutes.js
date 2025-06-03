@@ -1,4 +1,5 @@
 // src/routes/authRoutes.js
+const { processShopeeOrders } = require('../services/orderProcessor'); // Adicione esta linha
 const express = require('express');
 const router = express.Router();
 const { generateAuthUrl, getAccessToken } = require('../api/shopee/auth');
@@ -33,3 +34,17 @@ router.get('/shopee/callback', async (req, res) => {
 });
 
 module.exports = router;
+
+// Rota de teste TEMPORÁRIA para disparar a busca de pedidos
+router.get('/shopee/fetch-orders', async (req, res) => {
+  console.log('🔥 Requisição para /auth/shopee/fetch-orders recebida!');
+  try {
+    await processShopeeOrders();
+    res.status(200).send('Processamento de pedidos Shopee iniciado. Verifique os logs do Render para detalhes.');
+  } catch (error) {
+    console.error('❌ Erro ao iniciar processamento de pedidos Shopee:', error);
+    res.status(500).send('Erro ao iniciar processamento de pedidos Shopee. Verifique os logs.');
+  }
+});
+
+module.exports = router; // Certifique-se de que esta linha está no final

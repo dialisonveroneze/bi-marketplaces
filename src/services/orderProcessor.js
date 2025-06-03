@@ -1,94 +1,69 @@
 // src/services/orderProcessor.js
 const { supabase } = require('../database');
+const { fetchShopeeOrders } = require('../api/shopee/orders');
+// const { refreshShopeeToken } = require('../api/shopee/auth'); // Iremos criar essa no futuro
 
-/**
- * Processa pedidos brutos da Shopee, normaliza e salva em orders_normalized.
- * Marca os pedidos brutos como processados.
- */
-async function processShopeeRawOrders() {
-  console.log('🔄 Iniciando processamento de pedidos brutos da Shopee...');
+async function processShopeeOrders() {
+  console.log('🔄 [processShopeeOrders] Iniciando o processamento de pedidos Shopee...');
 
   try {
-    // 1. Buscar pedidos brutos não processados
-    const { data: rawOrders, error: fetchError } = await supabase
-      .from('orders_raw_shopee')
-      .select('*')
-      .eq('is_processed', false)
-      .limit(100); // Processar em lotes para evitar sobrecarga
+    // 1. Obter todas as conexões Shopee ativas do banco de dados
+    // Selecionamos as informações necessárias para buscar e salvar pedidos
+    const { data: connections, error } = await supabase
+      .from('client_connections')
+      .select('id, client_id, access_token, refresh_token, additional_data') // Incluímos 'id' da conexão para futuras atualizações
+      .eq('connection_name', 'shopee'); // Filtrar apenas conexões da Shopee
 
-    if (fetchError) {
-      console.error('❌ Erro ao buscar pedidos brutos não processados:', fetchError.message);
+    if (error) {
+      console.error('❌ [processShopeeOrders] Erro ao buscar conexões Shopee:', error.message);
       return;
     }
 
-    if (rawOrders.length === 0) {
-      console.log('✅ Nenhum pedido bruto da Shopee para processar.');
+    if (!connections || connections.length === 0) {
+      console.log('📭 [processShopeeOrders] Nenhuma conexão Shopee encontrada para processar.');
       return;
     }
 
-    console.log(`📦 Encontrados ${rawOrders.length} pedidos brutos da Shopee para processar.`);
+    console.log(`📦 [processShopeeOrders] Encontradas ${connections.length} conexões Shopee para processar.`);
 
-    const normalizedOrders = [];
-    const processedRawOrderIds = [];
+    for (const connection of connections) {
+      const { id: connection_id, client_id, access_token, refresh_token, additional_data } = connection;
+      const shop_id = additional_data?.shop_id; // Extrair o shop_id de additional_data
 
-    for (const rawOrder of rawOrders) {
+      if (!shop_id) {
+        console.warn(`⚠️ [processShopeeOrders] Conexão Shopee (ID: ${connection_id}) para client_id ${client_id} sem shop_id. Pulando.`);
+        continue;
+      }
+
+      console.log(`🛍️ [processShopeeOrders] Processando pedidos para Shop ID: ${shop_id} (Client ID: ${client_id})`);
+
       try {
-        // 2. Normalizar os dados do pedido
-        const normalizedData = {
-          client_id: rawOrder.client_id,
-          connection_name: 'shopee', // Ou extraia de connection_name se houver no raw_data
-          external_order_id: rawOrder.order_id,
-          status: rawOrder.raw_data.order_status, // Exemplo: ajuste conforme a estrutura do raw_data
-          total_amount: rawOrder.raw_data.total_amount, // Exemplo: ajuste conforme a estrutura do raw_data
-          order_date: new Date(rawOrder.raw_data.create_time * 1000).toISOString(), // Shopee timestamp é em segundos
-          // Adicione outros campos normalizados aqui
-        };
-        normalizedOrders.push(normalizedData);
-        processedRawOrderIds.push(rawOrder.id);
+        // Chamamos a função fetchShopeeOrders que você já deve ter ou que criaremos
+        await fetchShopeeOrders({ client_id, shop_id, access_token });
+        console.log(`✅ [processShopeeOrders] Pedidos para Shop ID: ${shop_id} processados com sucesso.`);
+      } catch (orderError) {
+        console.error(`❌ [processShopeeOrders] Erro ao buscar pedidos para Shop ID ${shop_id}:`, orderError.response ? JSON.stringify(orderError.response.data, null, 2) : orderError.message);
 
-      } catch (normalizationError) {
-        console.error(`❌ Erro ao normalizar pedido ${rawOrder.id}:`, normalizationError.message);
-        // Você pode querer registrar esses erros em uma tabela de logs de erros
+        // TODO: Aqui vamos adicionar a lógica para renovar o token se ele estiver expirado
+        // if (orderError.response && orderError.response.data?.message === 'access_token_expired') {
+        //   console.log('🔄 Tentando renovar o token...');
+        //   try {
+        //     const newTokens = await refreshShopeeToken(refresh_token);
+        //     // Atualize o DB com newTokens.access_token e newTokens.refresh_token
+        //     // E tente fetchShopeeOrders novamente com o novo token
+        //   } catch (refreshError) {
+        //     console.error('❌ Erro ao renovar token:', refreshError.message);
+        //   }
+        // }
       }
     }
+    console.log('🎉 [processShopeeOrders] Processamento de pedidos Shopee concluído.');
 
-    // 3. Inserir pedidos normalizados no banco de dados
-    if (normalizedOrders.length > 0) {
-      const { data: insertedNormalized, error: insertError } = await supabase
-        .from('orders_normalized')
-        .insert(normalizedOrders)
-        .select();
-
-      if (insertError) {
-        console.error('❌ Erro ao inserir pedidos normalizados:', insertError.message);
-        throw new Error('Erro ao inserir pedidos normalizados.');
-      }
-      console.log(`✅ ${insertedNormalized.length} pedidos normalizados inseridos com sucesso.`);
-    }
-
-    // 4. Marcar pedidos brutos como processados
-    if (processedRawOrderIds.length > 0) {
-      const { error: updateError } = await supabase
-        .from('orders_raw_shopee')
-        .update({ is_processed: true })
-        .in('id', processedRawOrderIds);
-
-      if (updateError) {
-        console.error('❌ Erro ao marcar pedidos brutos como processados:', updateError.message);
-        // Considere ter uma lógica de retry ou logs aqui, pois isso é crítico
-      } else {
-        console.log(`✅ ${processedRawOrderIds.length} pedidos brutos marcados como processados.`);
-      }
-    }
-
-    console.log('🎉 Processamento de pedidos brutos da Shopee concluído.');
-
-  } catch (error) {
-    console.error('🚨 Erro geral no processamento de pedidos brutos da Shopee:', error.message);
+  } catch (globalError) {
+    console.error('🔥 [processShopeeOrders] Erro global no processamento de pedidos Shopee:', globalError.message);
   }
 }
 
 module.exports = {
-  processShopeeRawOrders,
-  // Adicione funções para processar pedidos do Mercado Livre aqui
+  processShopeeOrders,
 };
