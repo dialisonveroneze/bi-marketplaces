@@ -1,0 +1,30 @@
+{
+  "name": "bi-marketplace-integrator",
+  "version": "1.0.0",
+  "description": "Integração para coletar e normalizar pedidos de marketplaces como Shopee e Mercado Livre.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "shopee",
+    "mercado-livre",
+    "marketplace",
+    "bi",
+    "supabase",
+    "nodejs"
+  ],
+  "author": "Seu Nome",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.x.x",  
+    "axios": "^1.x.x",
+    "dotenv": "^16.x.x",
+    "express": "^4.x.x",
+    "crypto-js": "^4.x.x"
+  },
+  "devDependencies": {
+    "nodemon": "^3.x.x"
+  }
+}

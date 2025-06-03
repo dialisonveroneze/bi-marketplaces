@@ -1,0 +1,23 @@
+# Node.js
+node_modules/
+npm-debug.log
+.env
+
+# Logs
+logs/
+*.log
+
+# Build artifacts
+dist/
+build/
+
+# Supabase client files (if any are generated locally)
+.supabase/
+
+# IDE specific files
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
