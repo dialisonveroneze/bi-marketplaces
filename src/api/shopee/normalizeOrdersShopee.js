@@ -44,11 +44,14 @@ async function normalizeOrdersShopee(client_id) {
         update_time_utc: order.update_time ? new Date(order.update_time * 1000).toISOString() : null,
         pay_time_utc: order.payment_info && order.payment_info.pay_time ? new Date(order.payment_info.pay_time * 1000).toISOString() : null,
 
-        total_amount: order.total_amount,
-        shipping_fee: order.shipping_fee,
-        actual_shipping_fee: order.actual_shipping_fee,
+        // --- Tratamento de valores nulos para campos NOT NULL na tabela ---
+        total_amount: (order.total_amount !== undefined && order.total_amount !== null) ? order.total_amount : 0,
+        shipping_fee: (order.shipping_fee !== undefined && order.shipping_fee !== null) ? order.shipping_fee : 0,
+        actual_shipping_fee: (order.actual_shipping_fee !== undefined && order.actual_shipping_fee !== null) ? order.actual_shipping_fee : 0,
+        paid_amount: (order.payment_info && order.payment_info.paid_amount !== undefined && order.payment_info.paid_amount !== null) ? order.payment_info.paid_amount : 0,
+        // --- Fim do tratamento de nulos ---
+
         payment_method: order.payment_info ? order.payment_info.payment_method : null,
-        paid_amount: order.payment_info ? order.payment_info.paid_amount : null,
         currency: order.currency,
 
         // Campos do Endereço (recipient_address)
