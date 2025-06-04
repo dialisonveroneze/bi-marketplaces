@@ -49,8 +49,8 @@ async function getAccessTokenFromCode(code, shopId) {
     const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    // MUDANÇA AQUI: Adiciona partner_id na query string da URL para resolver o erro "There is no partner_id in query."
-    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}`; 
+    // MUDANÇA AQUI: Adiciona timestamp na query string da URL
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}`; 
 
     try {
         const response = await axios.post(url, requestBody, {
@@ -58,7 +58,7 @@ async function getAccessTokenFromCode(code, shopId) {
                 'Content-Type': 'application/json',
                 'Host': new URL(SHOPEE_API_HOST_LIVE).host,
                 'partner_id': partnerId, // partner_id nos headers
-                'timestamp': timestamp,
+                'timestamp': timestamp, // timestamp nos headers
                 'sign': sign
             }
         });
@@ -99,8 +99,8 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
     const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    // MUDANÇA AQUI: Adiciona partner_id na query string da URL para resolver o erro "There is no partner_id in query."
-    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}`;
+    // MUDANÇA AQUI: Adiciona timestamp na query string da URL
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}`;
 
     try {
         const response = await axios.post(url, requestBody, {
@@ -108,7 +108,7 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
                 'Content-Type': 'application/json',
                 'Host': new URL(SHOPEE_API_HOST_LIVE).host,
                 'partner_id': partnerId, // partner_id nos headers
-                'timestamp': timestamp,
+                'timestamp': timestamp, // timestamp nos headers
                 'sign': sign
             }
         });
