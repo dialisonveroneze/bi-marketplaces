@@ -37,7 +37,6 @@ if (!SHOPEE_PARTNER_ID_LIVE || !SHOPEE_API_KEY_LIVE || !SHOPEE_API_HOST_LIVE) {
 async function getAccessTokenFromCode(code, shopId) {
     const path = "/api/v2/auth/token/get"; // Endpoint correto para obter token pela primeira vez
     const timestamp = Math.floor(Date.now() / 1000);
-    // CORREÇÃO AQUI: "SHOPEE_PARTNER_ID_LIVE" em vez de "SHOPEE_PARTENER_ID_LIVE"
     const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); 
 
     const requestBody = {
@@ -88,7 +87,6 @@ async function getAccessTokenFromCode(code, shopId) {
 async function refreshShopeeAccessToken(shopId, refreshToken) {
     const path = "/api/v2/auth/access_token/get"; // Endpoint para refrescar token
     const timestamp = Math.floor(Date.now() / 1000);
-    // CORREÇÃO AQUI: "SHOPEE_PARTNER_ID_LIVE" em vez de "SHOPEE_PARTENER_ID_LIVE"
     const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); 
 
     const requestBody = {
