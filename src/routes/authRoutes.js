@@ -45,15 +45,15 @@ async function getAccessTokenFromCode(code, shopId) {
         partner_id: partnerId // partner_id no corpo da requisição
     };
 
-    // Assinatura para token/get DEVE incluir o JSON.stringify(requestBody)
-    const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
+    // >>>>> MUDANÇA AQUI: REMOVIDO JSON.stringify(requestBody) da baseString <<<<<
+    const baseString = `${partnerId}${path}${timestamp}`; 
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
     // >>>>> LOGS DE DEPURACÃO PARA "Wrong sign" <<<<<
     console.log(`[DEBUG_SIGN_GET_TOKEN] Partner ID: ${partnerId}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Path: ${path}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Timestamp: ${timestamp}`);
-    console.log(`[DEBUG_SIGN_GET_TOKEN] Request Body (stringified): ${JSON.stringify(requestBody)}`);
+    console.log(`[DEBUG_SIGN_GET_TOKEN] Request Body (stringified): ${JSON.stringify(requestBody)}`); // Ainda logamos o body para referência
     console.log(`[DEBUG_SIGN_GET_TOKEN] Base String COMPLETA: ${baseString}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Generated Sign: ${sign}`);
     // >>>>> FIM DOS LOGS DE DEPURACÃO <<<<<
@@ -104,15 +104,15 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
         partner_id: partnerId // partner_id no corpo da requisição
     };
 
-    // Assinatura para access_token/get DEVE incluir o JSON.stringify(requestBody)
-    const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
+    // >>>>> MUDANÇA AQUI: REMOVIDO JSON.stringify(requestBody) da baseString <<<<<
+    const baseString = `${partnerId}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
     // >>>>> LOGS DE DEPURACÃO PARA "Wrong sign" <<<<<
     console.log(`[DEBUG_SIGN_REFRESH] Partner ID: ${partnerId}`);
     console.log(`[DEBUG_SIGN_REFRESH] Path: ${path}`);
     console.log(`[DEBUG_SIGN_REFRESH] Timestamp: ${timestamp}`);
-    console.log(`[DEBUG_SIGN_REFRESH] Request Body (Refresh, stringified): ${JSON.stringify(requestBody)}`);
+    console.log(`[DEBUG_SIGN_REFRESH] Request Body (Refresh, stringified): ${JSON.stringify(requestBody)}`); // Ainda logamos o body para referência
     console.log(`[DEBUG_SIGN_REFRESH] Base String COMPLETA (Refresh): ${baseString}`);
     console.log(`[DEBUG_SIGN_REFRESH] Generated Sign (Refresh): ${sign}`);
     // >>>>> FIM DOS LOGS DE DEPURACÃO <<<<<
@@ -164,7 +164,7 @@ router.get('/auth/shopee/callback', async (req, res) => {
 
     console.log(`[API_ROUTE] Endpoint /auth/shopee/callback acionado com code e shop_id para Shop ID: ${shop_id}`);
 
-    const partnerId = process.env.SHOPEE_PARTNER_ID_LIVE;
+    const partnerId = process.env.SHOPEE_PARTENER_ID_LIVE;
     const partnerKey = process.env.SHOPEE_API_KEY_LIVE;
     const redirectUrl = process.env.SHOPEE_REDIRECT_URL_LIVE; // A URL COMPLETA
     const apiHost = process.env.SHOPEE_API_HOST_LIVE;
@@ -281,7 +281,7 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         const timestamp = Math.floor(Date.now() / 1000);
         const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
 
-        // Assinatura para get_order_list (GET)
+        // Assinatura para get_order_list (GET) - Esta já estava correta, não precisa mudar
         const baseStringOrderList = `${partnerId}${ordersPath}${timestamp}${accessToken}${Number(shopId)}`;
         const signatureOrderList = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseStringOrderList).digest('hex');
 
