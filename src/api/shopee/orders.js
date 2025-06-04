@@ -13,7 +13,7 @@ const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE;
  *
  * @param {number} shopId O ID da loja Shopee.
  * @param {string} accessToken O access token válido para a loja.
- * @param {string} connectionId O ID da conexão no Supabase para esta loja.
+ * @param {string} connectionId O ID da conexão no Supabase para esta loja (usado como client_id).
  * @returns {Array} Uma lista dos pedidos processados.
  * @throws {Error} Se a requisição à Shopee falhar ou os pedidos não puderem ser salvos.
  */
@@ -36,8 +36,6 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
     time_to: timestamp,
     time_range_field: 'create_time',
     page_size: 100,
-    // Definimos response_optional_fields para 'order_status', pois foi o único que a Shopee aceitou
-    // e retornou além dos campos padrão (order_sn, booking_sn).
     response_optional_fields: 'order_status',
   };
 
@@ -112,10 +110,9 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
 
       if (orders.length > 0) {
         const ordersToUpsert = orders.map(order => ({
-          client_id: connectionId,
-          order_id: order.order_sn, // Mapeando o order_sn da Shopee para sua coluna order_id
-          raw_data: order, // Salva o objeto de pedido completo retornado pela Shopee
-          // REMOVIDO: order_status, created_at, updated_at - esses campos serão acessados via raw_data.
+          client_id: 1, // <--- GARANTINDO client_id = 1 AQUI
+          order_id: order.order_sn,
+          raw_data: order,
         }));
 
         console.log(`[DEBUG_SHOPEE] Preparando ${ordersToUpsert.length} pedidos para upsert no Supabase.`);
@@ -123,8 +120,8 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
         const { error: insertError } = await supabase
           .from('orders_raw_shopee')
           .upsert(ordersToUpsert, { 
-            onConflict: ['order_id'], // Chave de conflito para atualização
-            ignoreDuplicates: false // Permite a atualização de registros existentes
+            onConflict: ['order_id'],
+            ignoreDuplicates: false
           });
 
         if (insertError) {
