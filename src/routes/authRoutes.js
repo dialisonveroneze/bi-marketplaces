@@ -19,15 +19,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Variáveis da Shopee
 const SHOPEE_PARTNER_ID_LIVE = process.env.SHOPEE_PARTNER_ID_LIVE;
 const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE;
-const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE; // Não usado diretamente aqui, mas bom ter
+const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE; 
 const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE;
-const SHOPEE_REDIRECT_URL_LIVE = process.env.SHOPEE_REDIRECT_URL_LIVE; // Adicionada para validação
+const SHOPEE_REDIRECT_URL_LIVE = process.env.SHOPEE_REDIRECT_URL_LIVE; 
 
 // Validação melhorada para garantir que as variáveis de ambiente da Shopee estão definidas
 console.log("--- Verificando Variáveis de Ambiente da Shopee ---");
 console.log(`SHOPEE_PARTNER_ID_LIVE (Esperado: seu ID de parceiro): ${SHOPEE_PARTNER_ID_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
-console.log(`SHOPEE_API_KEY_LIVE (Esperado: sua chave de API): ${SHOPEE_API_KEY_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
-console.log(`SHOPEE_API_HOST_LIVE (Esperado: https://partner.shopeemobile.com): ${SHOPEE_API_HOST_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
+console.log(`SHOPEE_API_KEY_LIVE (Esperado: sua chave de API): OK`);
+console.log(`SHOPEE_API_HOST_LIVE (Esperado: https://partner.shopeemobile.com ou .com.br): ${SHOPEE_API_HOST_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
 console.log(`SHOPEE_REDIRECT_URL_LIVE (Esperado: Sua URL de callback): ${SHOPEE_REDIRECT_URL_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`); 
 
 let shopeeConfigOk = true;
@@ -50,7 +50,6 @@ if (!SHOPEE_REDIRECT_URL_LIVE) {
 
 if (!shopeeConfigOk) {
     console.error("--- ERRO: Variáveis de ambiente da Shopee não estão configuradas corretamente. ---");
-    // Em um ambiente de produção, você pode querer lançar um erro ou encerrar o processo aqui
     // process.exit(1); 
 } else {
     console.log("--- Todas as variáveis de ambiente da Shopee estão configuradas corretamente. ---");
@@ -65,41 +64,35 @@ console.log("------------------------------------------");
  * @returns {Promise<object>} Um objeto contendo access_token, refresh_token e expire_in.
  */
 async function getAccessTokenFromCode(code, shopId) {
-    const path = "/api/v2/auth/token/get"; // Endpoint correto para obter token pela primeira vez
+    const path = "/api/v2/auth/token/get"; 
     const timestamp = Math.floor(Date.now() / 1000);
     const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); 
 
     const requestBody = {
         code: code,
         shop_id: Number(shopId),
-        partner_id: String(partnerId) // partner_id no corpo da requisição
+        partner_id: partnerId // CORREÇÃO AQUI: Removemos String() - deve ser um número!
     };
 
-    // >>>>> MUDANÇA CRÍTICA AQUI: REMOVIDO JSON.stringify(requestBody) da baseString <<<<<
-    // A baseString para "Public APIs" (como esta, que busca o token inicial) é apenas partner_id + path + timestamp
     const baseString = `${partnerId}${path}${timestamp}`; 
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    // >>>>> LOGS DE DEPURACÃO PARA "Wrong sign" <<<<<
     console.log(`[DEBUG_SIGN_GET_TOKEN] Partner ID: ${partnerId}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Path: ${path}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Timestamp: ${timestamp}`);
-    console.log(`[DEBUG_SIGN_GET_TOKEN] Request Body (stringified): ${JSON.stringify(requestBody)}`); // Ainda logamos o body para referência
+    console.log(`[DEBUG_SIGN_GET_TOKEN] Request Body (stringified): ${JSON.stringify(requestBody)}`); 
     console.log(`[DEBUG_SIGN_GET_TOKEN] Base String COMPLETA: ${baseString}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Generated Sign: ${sign}`);
-    // >>>>> FIM DOS LOGS DE DEPURACÃO <<<<<
 
-    // Adiciona partner_id, timestamp e sign na query string da URL
     const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`; 
 
     try {
+        console.log(`[DEBUG_API_CALL] URL para token: ${url}`);
+        console.log(`[DEBUG_API_CALL] Request Body para token: ${JSON.stringify(requestBody)}`);
         const response = await axios.post(url, requestBody, {
             headers: {
                 'Content-Type': 'application/json',
                 'Host': new URL(SHOPEE_API_HOST_LIVE).host,
-                'partner_id': partnerId, // partner_id nos headers
-                'timestamp': timestamp, // timestamp nos headers
-                'sign': sign // sign nos headers
             }
         });
 
@@ -120,46 +113,38 @@ async function getAccessTokenFromCode(code, shopId) {
 
 /**
  * Atualiza o access_token usando o refresh_token.
- * @param {string} shopId O ID da loja.
- * @param {string} refreshToken O refresh_token atual.
- * @returns {Promise<object>} Um objeto contendo o novo access_token, refresh_token e expire_in.
+ * ... (código refreshShopeeAccessToken permanece o mesmo) ...
  */
 async function refreshShopeeAccessToken(shopId, refreshToken) {
-    const path = "/api/v2/auth/access_token/get"; // Endpoint para refrescar token
+    const path = "/api/v2/auth/access_token/get"; 
     const timestamp = Math.floor(Date.now() / 1000);
     const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); 
 
     const requestBody = {
         shop_id: Number(shopId),
         refresh_token: refreshToken,
-        partner_id: partnerId // partner_id no corpo da requisição
+        partner_id: partnerId // CORREÇÃO AQUI: Removemos String() - deve ser um número!
     };
 
-    // >>>>> MUDANÇA CRÍTICA AQUI: REMOVIDO JSON.stringify(requestBody) da baseString <<<<<
-    // A baseString para esta API de refresh também é apenas partner_id + path + timestamp
     const baseString = `${partnerId}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    // >>>>> LOGS DE DEPURACÃO PARA "Wrong sign" <<<<<
     console.log(`[DEBUG_SIGN_REFRESH] Partner ID: ${partnerId}`);
     console.log(`[DEBUG_SIGN_REFRESH] Path: ${path}`);
     console.log(`[DEBUG_SIGN_REFRESH] Timestamp: ${timestamp}`);
-    console.log(`[DEBUG_SIGN_REFRESH] Request Body (Refresh, stringified): ${JSON.stringify(requestBody)}`); // Ainda logamos o body para referência
+    console.log(`[DEBUG_SIGN_REFRESH] Request Body (Refresh, stringified): ${JSON.stringify(requestBody)}`); 
     console.log(`[DEBUG_SIGN_REFRESH] Base String COMPLETA (Refresh): ${baseString}`);
     console.log(`[DEBUG_SIGN_REFRESH] Generated Sign (Refresh): ${sign}`);
-    // >>>>> FIM DOS LOGS DE DEPURACÃO <<<<<
 
-    // Adiciona partner_id, timestamp e sign na query string da URL
     const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
 
     try {
+        console.log(`[DEBUG_API_CALL_REFRESH] URL para refresh token: ${url}`);
+        console.log(`[DEBUG_API_CALL_REFRESH] Request Body para refresh token: ${JSON.stringify(requestBody)}`);
         const response = await axios.post(url, requestBody, {
             headers: {
                 'Content-Type': 'application/json',
                 'Host': new URL(SHOPEE_API_HOST_LIVE).host,
-                'partner_id': partnerId, // partner_id nos headers
-                'timestamp': timestamp, // timestamp nos headers
-                'sign': sign // sign nos headers
             }
         });
 
@@ -194,18 +179,13 @@ router.get('/auth/shopee/callback', async (req, res) => {
         return res.status(400).send('Erro: Parâmetros de callback ausentes.');
     }
 
-    console.log(`[API_ROUTE] Endpoint /auth/shopee/callback acionado com code e shop_id para Shop ID: ${shop_id}`);
+    console.log(`[API_ROUTE] Endpoint /auth/shopee/callback acionado com code e shop_id para Shop ID: ${shop_id}. CODE: ${code}`); // Logando o code recebido
 
-    // Reutilizando as variáveis de ambiente já carregadas
     const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
     const partnerKey = SHOPEE_API_KEY_LIVE;
     const redirectUrl = SHOPEE_REDIRECT_URL_LIVE; 
     const apiHost = SHOPEE_API_HOST_LIVE;
 
-    // A validação de variáveis de ambiente já foi feita na inicialização.
-    // Esta aqui é redundante se a inicialização já for bem sucedida,
-    // mas pode ser mantida para robustez extra em caso de acesso direto à rota
-    // sem a inicialização completa (cenário improvável no Render).
     if (!partnerId || !partnerKey || !redirectUrl || !apiHost) {
         console.error("Erro: Variáveis de ambiente da Shopee não estão configuradas corretamente no contexto da rota de callback.");
         return res.status(500).send("Erro de configuração do servidor.");
