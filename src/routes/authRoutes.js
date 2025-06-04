@@ -21,12 +21,42 @@ const SHOPEE_PARTNER_ID_LIVE = process.env.SHOPEE_PARTNER_ID_LIVE;
 const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE;
 const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE; // Não usado diretamente aqui, mas bom ter
 const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE;
+const SHOPEE_REDIRECT_URL_LIVE = process.env.SHOPEE_REDIRECT_URL_LIVE; // Adicionada para validação
 
-// Validação básica para garantir que as variáveis de ambiente da Shopee estão definidas
-if (!SHOPEE_PARTNER_ID_LIVE || !SHOPEE_API_KEY_LIVE || !SHOPEE_API_HOST_LIVE) {
-    console.error("Erro: Variáveis de ambiente da Shopee não estão configuradas corretamente.");
-    // Em um ambiente de produção, você pode querer lançar um erro ou encerrar o processo aqui
+// Validação melhorada para garantir que as variáveis de ambiente da Shopee estão definidas
+console.log("--- Verificando Variáveis de Ambiente da Shopee ---");
+console.log(`SHOPEE_PARTNER_ID_LIVE (Esperado: seu ID de parceiro): ${SHOPEE_PARTNER_ID_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
+console.log(`SHOPEE_API_KEY_LIVE (Esperado: sua chave de API): ${SHOPEE_API_KEY_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
+console.log(`SHOPEE_API_HOST_LIVE (Esperado: https://partner.shopeemobile.com): ${SHOPEE_API_HOST_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
+console.log(`SHOPEE_REDIRECT_URL_LIVE (Esperado: Sua URL de callback): ${SHOPEE_REDIRECT_URL_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`); 
+
+let shopeeConfigOk = true;
+if (!SHOPEE_PARTNER_ID_LIVE) {
+    console.error("Erro: SHOPEE_PARTNER_ID_LIVE não está configurado.");
+    shopeeConfigOk = false;
 }
+if (!SHOPEE_API_KEY_LIVE) {
+    console.error("Erro: SHOPEE_API_KEY_LIVE não está configurado.");
+    shopeeConfigOk = false;
+}
+if (!SHOPEE_API_HOST_LIVE) {
+    console.error("Erro: SHOPEE_API_HOST_LIVE não está configurado.");
+    shopeeConfigOk = false;
+}
+if (!SHOPEE_REDIRECT_URL_LIVE) {
+    console.error("Erro: SHOPEE_REDIRECT_URL_LIVE não está configurado.");
+    shopeeConfigOk = false;
+}
+
+if (!shopeeConfigOk) {
+    console.error("--- ERRO: Variáveis de ambiente da Shopee não estão configuradas corretamente. ---");
+    // Em um ambiente de produção, você pode querer lançar um erro ou encerrar o processo aqui
+    // process.exit(1); 
+} else {
+    console.log("--- Todas as variáveis de ambiente da Shopee estão configuradas corretamente. ---");
+}
+console.log("------------------------------------------");
+
 
 /**
  * Obtém o access_token e refresh_token usando o code da Shopee.
@@ -45,7 +75,8 @@ async function getAccessTokenFromCode(code, shopId) {
         partner_id: partnerId // partner_id no corpo da requisição
     };
 
-    // >>>>> MUDANÇA AQUI: REMOVIDO JSON.stringify(requestBody) da baseString <<<<<
+    // >>>>> MUDANÇA CRÍTICA AQUI: REMOVIDO JSON.stringify(requestBody) da baseString <<<<<
+    // A baseString para "Public APIs" (como esta, que busca o token inicial) é apenas partner_id + path + timestamp
     const baseString = `${partnerId}${path}${timestamp}`; 
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
@@ -104,7 +135,8 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
         partner_id: partnerId // partner_id no corpo da requisição
     };
 
-    // >>>>> MUDANÇA AQUI: REMOVIDO JSON.stringify(requestBody) da baseString <<<<<
+    // >>>>> MUDANÇA CRÍTICA AQUI: REMOVIDO JSON.stringify(requestBody) da baseString <<<<<
+    // A baseString para esta API de refresh também é apenas partner_id + path + timestamp
     const baseString = `${partnerId}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
@@ -164,14 +196,18 @@ router.get('/auth/shopee/callback', async (req, res) => {
 
     console.log(`[API_ROUTE] Endpoint /auth/shopee/callback acionado com code e shop_id para Shop ID: ${shop_id}`);
 
-    const partnerId = process.env.SHOPEE_PARTENER_ID_LIVE;
-    const partnerKey = process.env.SHOPEE_API_KEY_LIVE;
-    const redirectUrl = process.env.SHOPEE_REDIRECT_URL_LIVE; // A URL COMPLETA
-    const apiHost = process.env.SHOPEE_API_HOST_LIVE;
+    // Reutilizando as variáveis de ambiente já carregadas
+    const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
+    const partnerKey = SHOPEE_API_KEY_LIVE;
+    const redirectUrl = SHOPEE_REDIRECT_URL_LIVE; 
+    const apiHost = SHOPEE_API_HOST_LIVE;
 
-    // Validação básica para garantir que as variáveis de ambiente estão definidas
+    // A validação de variáveis de ambiente já foi feita na inicialização.
+    // Esta aqui é redundante se a inicialização já for bem sucedida,
+    // mas pode ser mantida para robustez extra em caso de acesso direto à rota
+    // sem a inicialização completa (cenário improvável no Render).
     if (!partnerId || !partnerKey || !redirectUrl || !apiHost) {
-        console.error("Erro: Variáveis de ambiente da Shopee não estão configuradas corretamente.");
+        console.error("Erro: Variáveis de ambiente da Shopee não estão configuradas corretamente no contexto da rota de callback.");
         return res.status(500).send("Erro de configuração do servidor.");
     }
 
