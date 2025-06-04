@@ -36,8 +36,8 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
     time_to: timestamp,
     time_range_field: 'create_time',
     page_size: 100,
-    // Deixamos apenas 'order_status' aqui, pois é o único campo extra que a Shopee nos retornou na lista
-    // após remover payment_info e recipient_address. 'items' também não veio na resposta que você enviou.
+    // Definimos response_optional_fields para 'order_status', pois foi o único que a Shopee aceitou
+    // e retornou além dos campos padrão (order_sn, booking_sn).
     response_optional_fields: 'order_status',
   };
 
@@ -115,11 +115,7 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
           client_id: connectionId,
           order_id: order.order_sn, // Mapeando o order_sn da Shopee para sua coluna order_id
           raw_data: order, // Salva o objeto de pedido completo retornado pela Shopee
-          // Não tente mais mapear created_at e updated_at diretamente aqui,
-          // pois sua tabela não tem essas colunas. A Shopee info está em raw_data.
-          // order_status é o único campo extra que veio e você pode querer expor
-          // fora do raw_data para facilitar consultas se quiser.
-          order_status: order.order_status || null,
+          // REMOVIDO: order_status, created_at, updated_at - esses campos serão acessados via raw_data.
         }));
 
         console.log(`[DEBUG_SHOPEE] Preparando ${ordersToUpsert.length} pedidos para upsert no Supabase.`);
