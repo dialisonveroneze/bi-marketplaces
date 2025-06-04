@@ -34,12 +34,11 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
     timestamp: timestamp,
     time_from: sevenDaysAgo,
     time_to: timestamp,
-    time_range_field: 'create_time', // Campo pelo qual a Shopee deve filtrar (create_time ou update_time)
-    page_size: 100, // Número de pedidos por página (máximo 100)
-    // --- MUDANÇA AQUI: REMOVENDO 'items' de response_optional_fields ---
-    // Deixando apenas 'order_status'. Este é o campo mais provável de ser suportado.
+    time_range_field: 'create_time',
+    page_size: 100,
+    // Deixamos apenas 'order_status' aqui, pois é o único campo extra que a Shopee nos retornou na lista
+    // após remover payment_info e recipient_address. 'items' também não veio na resposta que você enviou.
     response_optional_fields: 'order_status',
-    // cursor: '', // Para paginação de resultados (se houver mais de 100 pedidos)
   };
 
   // Log dos parâmetros que serão usados na assinatura
@@ -68,7 +67,7 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
     time_to: queryParams.time_to,
     time_range_field: queryParams.time_range_field,
     page_size: queryParams.page_size,
-    response_optional_fields: queryParams.response_optional_fields, // Incluído na assinatura
+    response_optional_fields: queryParams.response_optional_fields,
   });
 
   const orderedQueryParams = {
@@ -114,11 +113,13 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
       if (orders.length > 0) {
         const ordersToUpsert = orders.map(order => ({
           client_id: connectionId,
-          order_id: order.order_sn,
-          raw_data: order, // Salva o objeto de pedido completo (com os campos opcionais agora corretos)
+          order_id: order.order_sn, // Mapeando o order_sn da Shopee para sua coluna order_id
+          raw_data: order, // Salva o objeto de pedido completo retornado pela Shopee
+          // Não tente mais mapear created_at e updated_at diretamente aqui,
+          // pois sua tabela não tem essas colunas. A Shopee info está em raw_data.
+          // order_status é o único campo extra que veio e você pode querer expor
+          // fora do raw_data para facilitar consultas se quiser.
           order_status: order.order_status || null,
-          created_at: order.create_time ? new Date(order.create_time * 1000).toISOString() : null,
-          updated_at: order.update_time ? new Date(order.update_time * 1000).toISOString() : null,
         }));
 
         console.log(`[DEBUG_SHOPEE] Preparando ${ordersToUpsert.length} pedidos para upsert no Supabase.`);
@@ -126,8 +127,8 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
         const { error: insertError } = await supabase
           .from('orders_raw_shopee')
           .upsert(ordersToUpsert, { 
-            onConflict: ['order_id'],
-            ignoreDuplicates: false
+            onConflict: ['order_id'], // Chave de conflito para atualização
+            ignoreDuplicates: false // Permite a atualização de registros existentes
           });
 
         if (insertError) {
