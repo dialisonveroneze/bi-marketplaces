@@ -16,7 +16,7 @@ async function normalizeOrdersShopee(client_id) {
       .from('orders_raw_shopee')
       .select('order_id, raw_data')
       .eq('is_processed', false)
-      .eq('client_id', client_id); // Filtrar pelo client_id para garantir relevância
+      .eq('client_id', client_id);
 
     if (fetchError) {
       console.error('❌ [NORMALIZER] Erro ao buscar pedidos brutos não processados:', fetchError.message);
@@ -31,7 +31,23 @@ async function normalizeOrdersShopee(client_id) {
     console.log(`[NORMALIZER] Encontrados ${rawOrders.length} pedidos brutos para normalizar.`);
 
     const normalizedOrdersToUpsert = rawOrders.map(rawOrder => {
-      const order = rawOrder.raw_data; // O JSON completo está na coluna 'raw_data'
+      const order = rawOrder.raw_data;
+
+      // Helper para garantir que um valor é um número, mesmo se vier como string.
+      // Retorna 0 se for undefined, null, ou não puder ser convertido.
+      const parseNumeric = (value) => {
+        if (value === undefined || value === null || value === '') {
+          return 0; // Ou outro valor padrão que faça sentido, como null
+        }
+        const parsed = parseFloat(value);
+        return isNaN(parsed) ? 0 : parsed;
+      };
+
+      // Helper para garantir que um valor de timestamp é convertido corretamente.
+      const parseTimestamp = (timestamp) => {
+          return timestamp ? new Date(timestamp * 1000).toISOString() : null;
+      };
+
 
       // Mapeamento e transformação dos dados do JSON para a estrutura normalizada
       return {
@@ -39,22 +55,20 @@ async function normalizeOrdersShopee(client_id) {
         client_id: client_id,
         order_status: order.order_status,
 
-        // Conversão de timestamps Unix (segundos) para o formato ISO 8601 que o PostgreSQL espera
-        create_time_utc: order.create_time ? new Date(order.create_time * 1000).toISOString() : null,
-        update_time_utc: order.update_time ? new Date(order.update_time * 1000).toISOString() : null,
-        pay_time_utc: order.payment_info && order.payment_info.pay_time ? new Date(order.payment_info.pay_time * 1000).toISOString() : null,
+        create_time_utc: parseTimestamp(order.create_time),
+        update_time_utc: parseTimestamp(order.update_time),
+        pay_time_utc: order.payment_info ? parseTimestamp(order.payment_info.pay_time) : null,
 
-        // --- Tratamento de valores nulos para campos NOT NULL na tabela ---
-        total_amount: (order.total_amount !== undefined && order.total_amount !== null) ? order.total_amount : 0,
-        shipping_fee: (order.shipping_fee !== undefined && order.shipping_fee !== null) ? order.shipping_fee : 0,
-        actual_shipping_fee: (order.actual_shipping_fee !== undefined && order.actual_shipping_fee !== null) ? order.actual_shipping_fee : 0,
-        paid_amount: (order.payment_info && order.payment_info.paid_amount !== undefined && order.payment_info.paid_amount !== null) ? order.payment_info.paid_amount : 0,
-        // --- Fim do tratamento de nulos ---
+        // --- ALTERAÇÃO AQUI: Usando parseNumeric para todos os campos numéricos ---
+        total_amount: parseNumeric(order.total_amount),
+        shipping_fee: parseNumeric(order.shipping_fee),
+        actual_shipping_fee: parseNumeric(order.actual_shipping_fee),
+        paid_amount: order.payment_info ? parseNumeric(order.payment_info.paid_amount) : 0,
+        // --- FIM DA ALTERAÇÃO ---
 
         payment_method: order.payment_info ? order.payment_info.payment_method : null,
         currency: order.currency,
 
-        // Campos do Endereço (recipient_address)
         recipient_name: order.recipient_address ? order.recipient_address.name : null,
         recipient_phone: order.recipient_address ? order.recipient_address.phone : null,
         recipient_full_address: order.recipient_address ? order.recipient_address.full_address : null,
@@ -72,7 +86,7 @@ async function normalizeOrdersShopee(client_id) {
     const { error: upsertError } = await supabase
       .from('orders_detail_normalized')
       .upsert(normalizedOrdersToUpsert, {
-        onConflict: ['order_id'], // Usa order_id para conflito (upsert)
+        onConflict: ['order_id'],
         ignoreDuplicates: false
       });
 
@@ -84,7 +98,6 @@ async function normalizeOrdersShopee(client_id) {
     }
 
     // 3. Atualizar is_processed para TRUE em orders_raw_shopee
-    // Só marcamos como processado se o upsert na tabela normalizada foi bem-sucedido
     if (!upsertError) {
         const processedOrderIds = normalizedOrdersToUpsert.map(order => order.order_id);
         const { error: updateError } = await supabase
