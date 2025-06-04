@@ -2,24 +2,24 @@
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
-require('dotenv').config(); // Garante que as variáveis de ambiente sejam carregadas
+// Remova require('dotenv').config(); daqui, ele já está em server.js
 
 const { createClient } = require('@supabase/supabase-js');
 
-// Configuração do Supabase
+// Configuração do Supabase (acessa diretamente process.env, que já foi carregado por server.js)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const router = express.Router();
 
-// --- Variáveis de Ambiente ---
+// --- Variáveis da Shopee (acessa diretamente process.env, que já foi carregado por server.js) ---
 const SHOPEE_PARTNER_ID_LIVE = process.env.SHOPEE_PARTNER_ID_LIVE;
 const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE;
 const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE;
 const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE;
 
-// --- Funções Auxiliares de Segurança e API ---
+// --- Funções Auxiliares de Segurança e API (permanecem as mesmas) ---
 
 /**
  * Gera a assinatura HMAC-SHA256 para requisições da Shopee API.
@@ -30,22 +30,11 @@ const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE;
  */
 function generateShopeeSignature(path, params, timestamp) {
     let baseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timestamp}`;
-
-    // A string base para a assinatura é P.I. + PATH + TIMESTAMP.
-    // Para as chamadas de token (get_token, refresh_token), os parâmetros do corpo
-    // não são incluídos na string base para a assinatura 'sign'.
-    // Apenas os common parameters (partner_id, timestamp, sign, access_token, shop_id - se aplicável)
-    // são usados na string base.
-    // Para token/get e access_token/get, os únicos common parameters que já existem
-    // no momento da assinatura são partner_id, path e timestamp.
-    // Por isso, o `params` passado para `generateShopeeSignature` neste contexto é vazio `{}`.
-
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE)
         .update(baseString)
         .digest('hex');
     return sign;
 }
-
 
 /**
  * Obtém o access_token e refresh_token usando o code da Shopee.
@@ -63,7 +52,7 @@ async function getAccessTokenFromCode(code, shopId) {
         partner_id: Number(SHOPEE_PARTNER_ID_LIVE)
     };
 
-    const signature = generateShopeeSignature(path, {}, timestamp); // Não passa body params para a assinatura inicial
+    const signature = generateShopeeSignature(path, {}, timestamp); 
 
     const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${SHOPEE_PARTNER_ID_LIVE}&timestamp=${timestamp}&sign=${signature}`;
 
@@ -102,7 +91,7 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
         partner_id: Number(SHOPEE_PARTNER_ID_LIVE)
     };
 
-    const signature = generateShopeeSignature(path, {}, timestamp); // Não passa body params para a assinatura
+    const signature = generateShopeeSignature(path, {}, timestamp); 
 
     const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${SHOPEE_PARTNER_ID_LIVE}&timestamp=${timestamp}&sign=${signature}`;
 
@@ -125,18 +114,16 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
     }
 }
 
-
 // --- Rotas da API ---
 
 // Rota raiz - para verificar se o servidor está rodando
-// Esta rota exibe uma mensagem simples quando acessada diretamente sem parâmetros de callback.
+// Esta rota responderá quando o acesso for simplesmente https://bi-marketplaces.onrender.com/
 router.get('/', (req, res) => {
     res.status(200).send('Servidor BI Marketplace Integrator rodando! Use /auth/shopee/callback para autorização.');
 });
 
-
 // Endpoint de Callback da Shopee - Onde a Shopee redireciona APÓS a autorização
-// Esta rota agora escuta no caminho /auth/shopee/callback, como a Shopee está enviando.
+// Esta rota agora escuta no caminho /auth/shopee/callback
 router.get('/auth/shopee/callback', async (req, res) => {
     const { code, shop_id } = req.query; 
 
@@ -149,13 +136,13 @@ router.get('/auth/shopee/callback', async (req, res) => {
             const { data, error: upsertError } = await supabase
                 .from('api_connections_shopee')
                 .upsert({
-                    connection_id: 1, // ID fixo ou gerado, dependendo da sua necessidade
+                    connection_id: 1, 
                     shop_id: Number(shop_id), 
                     access_token: tokens.access_token,
                     refresh_token: tokens.refresh_token,
                     expires_at: new Date(Date.now() + tokens.expire_in * 1000).toISOString(), 
-                    partner_id: SHOPEE_PARTNER_ID_LIVE // Salva o partner_id usado
-                }, { onConflict: 'shop_id' }); // Conflito no shop_id para atualizar se já existir
+                    partner_id: SHOPEE_PARTENER_ID_LIVE 
+                }, { onConflict: 'shop_id' }); 
 
             if (upsertError) {
                 console.error('❌ [API_ROUTE] Erro ao salvar tokens no Supabase:', upsertError.message);
@@ -185,7 +172,7 @@ router.get('/auth/shopee/callback', async (req, res) => {
 
 // Endpoint para buscar e salvar pedidos brutos da Shopee
 router.get('/auth/shopee/fetch-orders', async (req, res) => {
-    const { shopId } = req.query; // Puxar shopId da query para flexibilidade
+    const { shopId } = req.query; 
 
     if (!shopId) {
         return res.status(400).json({ error: 'shopId é obrigatório na query.' });
@@ -194,7 +181,6 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
     console.log(`[API_ROUTE] Endpoint /shopee/fetch-orders acionado para Shop ID: ${shopId}.`);
 
     try {
-        // 1. Obter tokens do Supabase para o shopId
         const { data: connectionData, error: fetchError } = await supabase
             .from('api_connections_shopee')
             .select('access_token, refresh_token, expires_at')
@@ -211,20 +197,18 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         const expiresAt = new Date(connectionData.expires_at);
         const now = new Date();
 
-        // 2. Verificar se o access_token expirou e refrescar se necessário
         if (now >= expiresAt) {
             console.log(`🔄 [API_ROUTE] Access Token para Shop ID: ${shopId} expirado. Tentando refrescar...`);
             try {
                 const newTokens = await refreshShopeeAccessToken(shopId, refreshToken);
                 accessToken = newTokens.access_token;
-                refreshToken = newTokens.refresh_token; // O refresh_token também pode mudar
+                refreshToken = newTokens.refresh_token; 
                 const newExpiresAt = new Date(Date.now() + newTokens.expire_in * 1000);
 
-                // Atualizar tokens no Supabase
                 const { error: updateError } = await supabase
                     .from('api_connections_shopee')
                     .upsert({
-                        shop_id: Number(shopId), // Necessário para a condição onConflict
+                        shop_id: Number(shopId), 
                         access_token: accessToken,
                         refresh_token: refreshToken,
                         expires_at: newExpiresAt.toISOString()
@@ -242,25 +226,21 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
             }
         }
 
-        // 3. Chamar a Shopee API para buscar pedidos
         const ordersPath = "/api/v2/order/get_order_list";
         const timestamp = Math.floor(Date.now() / 1000);
 
-        // Parâmetros da API para buscar pedidos (ajuste conforme a necessidade)
         const orderParams = {
             shop_id: Number(shopId),
             partner_id: Number(SHOPEE_PARTNER_ID_LIVE),
             timestamp: timestamp,
-            access_token: accessToken, // O token válido
-            order_status: 'READY_TO_SHIP', // Exemplo: buscar pedidos prontos para envio
-            page_size: 10 // Limite de 10 pedidos por página para teste
-            // Adicione mais parâmetros como create_time_from, create_time_to, etc.
+            access_token: accessToken, 
+            order_status: 'READY_TO_SHIP', 
+            page_size: 10 
         };
 
         const signature = generateShopeeSignature(ordersPath, orderParams, timestamp);
 
         const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?partner_id=${SHOPEE_PARTNER_ID_LIVE}&timestamp=${timestamp}&sign=${signature}&access_token=${accessToken}&shop_id=${shopId}`;
-        // Adicione outros query params à URL de requisição (não na assinatura base)
         let finalOrdersUrl = ordersUrl;
         Object.keys(orderParams).forEach(key => {
             if (!['shop_id', 'partner_id', 'timestamp', 'access_token', 'sign'].includes(key)) {
@@ -281,18 +261,17 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         const orders = shopeeResponse.data.response.order_list;
         console.log(`[API_ROUTE] ${orders.length} pedidos encontrados para Shop ID: ${shopId}.`);
 
-        // 4. Salvar os pedidos brutos no Supabase
         if (orders.length > 0) {
             const ordersToInsert = orders.map(order => ({
                 order_sn: order.order_sn,
                 shop_id: Number(shopId),
-                original_data: order, // Salva o objeto completo do pedido
+                original_data: order, 
                 retrieved_at: new Date().toISOString()
             }));
 
             const { error: insertError } = await supabase
                 .from('orders_raw_shopee')
-                .upsert(ordersToInsert, { onConflict: 'order_sn' }); // Atualiza se o pedido já existir
+                .upsert(ordersToInsert, { onConflict: 'order_sn' }); 
 
             if (insertError) {
                 console.error('❌ [API_ROUTE] Erro ao salvar pedidos brutos no Supabase:', insertError.message);
@@ -317,16 +296,14 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
 router.get('/auth/shopee/normalize', async (req, res) => {
     console.log('[API_ROUTE] Endpoint /shopee/normalize acionado.');
 
-    // Pode-se adicionar shopId ou client_id como parâmetros de query para normalizar seletivamente
-    const clientId = req.query.clientId || 1; // Exemplo: normalize para um cliente específico
+    const clientId = req.query.clientId || 1; 
 
     console.log(`[DEBUG_NORMALIZER] Iniciando normalização para client_id: ${clientId}`);
 
     try {
-        // 1. Buscar pedidos brutos que ainda não foram normalizados (ou buscar todos e processar)
         const { data: rawOrders, error: fetchRawError } = await supabase
             .from('orders_raw_shopee')
-            .select('*'); // Pode adicionar filtros, como 'where is_normalized is false' se tiver esse campo
+            .select('*'); 
 
         if (fetchRawError) {
             console.error('❌ [NORMALIZER] Erro ao buscar pedidos brutos:', fetchRawError.message);
@@ -350,37 +327,31 @@ router.get('/auth/shopee/normalize', async (req, res) => {
             }
 
             try {
-                // Converta os valores monetários para números. A Shopee retorna como string.
-                // Use parseFloat ou Number() e verifique se o resultado é um número válido.
                 const totalAmount = parseFloat(originalData.total_amount) || 0;
-                const shippingFee = parseFloat(originalData.actual_shipping_fee) || 0; // Ou original_shipping_fee
+                const shippingFee = parseFloat(originalData.actual_shipping_fee) || 0; 
                 
-                // Exemplo de cálculo de "valor líquido" - pode precisar de ajuste com base em taxas reais da Shopee
-                const liquidValue = totalAmount - shippingFee; // Simplificado para este exemplo
+                const liquidValue = totalAmount - shippingFee; 
 
                 const normalizedData = {
-                    client_id: clientId, // ID do cliente a que este dado pertence
-                    platform_id: 1, // ID da plataforma (ex: 1 para Shopee)
+                    client_id: clientId, 
+                    platform_id: 1, 
                     order_sn: originalData.order_sn,
                     order_status: originalData.order_status,
                     total_amount: totalAmount,
                     shipping_fee: shippingFee,
                     liquid_value: liquidValue,
                     currency: originalData.currency,
-                    created_at: new Date(originalData.create_time * 1000).toISOString(), // Convert Unix timestamp to ISO string
+                    created_at: new Date(originalData.create_time * 1000).toISOString(), 
                     updated_at: new Date(originalData.update_time * 1000).toISOString(),
-                    // Outros campos importantes que você queira mapear:
                     recipient_name: originalData.recipient_address ? originalData.recipient_address.name : null,
                     recipient_phone: originalData.recipient_address ? originalData.recipient_address.phone : null,
                     shipping_carrier: originalData.shipping_carrier,
                     payment_method: originalData.payment_method,
                     buyer_username: originalData.buyer_username,
                     shop_id: originalData.shop_id,
-                    // Adicione mais campos conforme a estrutura de 'orders_detail_normalized'
                 };
                 normalizedOrders.push(normalizedData);
 
-                // Marcar como normalizado no orders_raw_shopee se desejar
                 updateRawStatus.push(rawOrder.order_sn);
 
             } catch (parseError) {
@@ -391,7 +362,7 @@ router.get('/auth/shopee/normalize', async (req, res) => {
         if (normalizedOrders.length > 0) {
             const { error: insertNormalizedError } = await supabase
                 .from('orders_detail_normalized')
-                .upsert(normalizedOrders, { onConflict: 'order_sn' }); // Atualiza se o pedido já existir
+                .upsert(normalizedOrders, { onConflict: 'order_sn' }); 
 
             if (insertNormalizedError) {
                 console.error('❌ [NORMALIZER] Erro ao salvar pedidos normalizados no Supabase:', insertNormalizedError.message);
@@ -399,17 +370,6 @@ router.get('/auth/shopee/normalize', async (req, res) => {
             } else {
                 console.log(`✅ [NORMALIZER] ${normalizedOrders.length} pedidos normalizados e salvos em orders_detail_normalized.`);
                 
-                // Opcional: Marcar pedidos brutos como processados
-                // if (updateRawStatus.length > 0) {
-                //     const { error: updateFlagError } = await supabase
-                //         .from('orders_raw_shopee')
-                //         .update({ is_normalized: true }) // Adicione uma coluna is_normalized ao orders_raw_shopee
-                //         .in('order_sn', updateRawStatus);
-                //     if (updateFlagError) {
-                //         console.error('Erro ao atualizar status de normalização dos pedidos brutos:', updateFlagError.message);
-                //     }
-                // }
-
                 res.status(200).json({ message: 'Pedidos normalizados com sucesso!', normalizedCount: normalizedOrders.length });
             }
         } else {
@@ -422,6 +382,5 @@ router.get('/auth/shopee/normalize', async (req, res) => {
         res.status(500).json({ error: 'Falha no processo de normalização de pedidos.', details: error.message });
     }
 });
-
 
 module.exports = router;
