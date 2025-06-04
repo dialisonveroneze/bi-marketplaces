@@ -1,14 +1,18 @@
 // src/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
+const { createClient } = require('@supabase/supabase-js'); // Importar Supabase
 
 const { fetchShopeeOrders } = require('../api/shopee/orders');
 const { normalizeOrdersShopee } = require('../api/shopee/normalizeOrdersShopee');
 const { getAccessTokenFromCode } = require('../api/shopee/auth');
 
-// =====================================================================
+// Configuração do Supabase (garanta que estas variáveis de ambiente estão no Render)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
 // NOVO ENDPOINT DE CALLBACK DA SHOPEE - RECEBE O CODE NA ROTA RAIZ '/'
-// =====================================================================
 router.get('/', async (req, res) => {
     const { code, shop_id } = req.query; // A Shopee enviará 'code' e 'shop_id' para a rota raiz
 
@@ -16,33 +20,36 @@ router.get('/', async (req, res) => {
         console.log(`[API_ROUTE] Endpoint RAIZ acionado com code e shop_id para Shop ID: ${shop_id}`);
         try {
             const tokens = await getAccessTokenFromCode(code, shop_id);
-            // Você pode decidir salvar esses tokens no Supabase aqui para persistência
-            // Exemplo de como salvar (requer Supabase configurado):
-            /*
-            const { data, error } = await supabase.from('api_connections_shopee').upsert({
-                shop_id: shop_id,
-                access_token: tokens.access_token,
-                refresh_token: tokens.refresh_token,
-                expires_in: tokens.expire_in, // tempo de expiração em segundos
-                // Adicione outros campos como partner_id, partner_key, etc., se necessário
-            }, { onConflict: 'shop_id' }); // Atualiza se a shop_id já existir
 
-            if (error) {
-                console.error('Erro ao salvar tokens no Supabase:', error.message);
+            // === NOVO: SALVAR OS TOKENS NO SUPABASE ===
+            const { data, error: upsertError } = await supabase
+                .from('api_connections_shopee')
+                .upsert({
+                    connection_id: 1, // Mantendo 1 como fixo por enquanto para o client_id
+                    shop_id: Number(shop_id), // Converte para número
+                    access_token: tokens.access_token,
+                    refresh_token: tokens.refresh_token,
+                    expires_at: new Date(Date.now() + tokens.expire_in * 1000).toISOString(), // Calcula o tempo de expiração
+                    partner_id: process.env.SHOPEE_PARTNER_ID_LIVE // Salva o partner_id também
+                }, { onConflict: 'shop_id' }); // Atualiza se a shop_id já existir
+
+            if (upsertError) {
+                console.error('❌ [API_ROUTE] Erro ao salvar tokens no Supabase:', upsertError.message);
+                // Não lançar erro aqui para ainda mostrar os tokens na tela
             } else {
-                console.log('Tokens salvos no Supabase:', data);
+                console.log(`✅ [API_ROUTE] Tokens salvos/atualizados no Supabase para Shop ID: ${shop_id}.`);
             }
-            */
+            // ===========================================
 
             res.status(200).json({
-                message: 'Access Token e Refresh Token obtidos com sucesso! Copie os valores abaixo.',
+                message: 'Access Token e Refresh Token obtidos e salvos no banco de dados com sucesso! Copie os valores abaixo para testes manuais.',
                 shopId: shop_id,
                 accessToken: tokens.access_token,
                 refreshToken: tokens.refresh_token,
                 expiresIn: tokens.expire_in // Tempo de expiração em segundos
             });
         } catch (error) {
-            console.error('Erro ao obter access token da Shopee via rota raiz:', error.message);
+            console.error('❌ [API_ROUTE] Erro ao obter access token da Shopee via rota raiz:', error.message);
             res.status(500).json({ error: 'Erro ao obter access token da Shopee', details: error.message });
         }
     } else {
@@ -50,7 +57,6 @@ router.get('/', async (req, res) => {
         res.status(200).send('Servidor BI Marketplace Integrator rodando!');
     }
 });
-// =====================================================================
 
 // Endpoint para buscar e salvar dados RAW da Shopee
 router.get('/shopee/fetch-orders', async (req, res) => {
@@ -83,11 +89,5 @@ router.get('/shopee/normalize', async (req, res) => {
     res.status(500).json({ error: 'Erro ao normalizar pedidos Shopee', details: error.message });
   }
 });
-
-// Endpoint AGORA INATIVO/REMOVIDO, pois o '/' vai lidar com o code
-// router.get('/shopee/get-token-from-code', async (req, res) => {
-//   // Removido ou tornado inativo, pois a rota '/' agora fará isso
-//   res.status(404).json({ error: 'Este endpoint foi movido para a rota raiz.' });
-// });
 
 module.exports = router;
