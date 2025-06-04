@@ -19,7 +19,7 @@ const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE;
 const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE;
 const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE;
 
-// --- Funções Auxiliares ---
+// --- Funções Auxiliares de Segurança e API ---
 
 /**
  * Gera a assinatura HMAC-SHA256 para requisições da Shopee API.
@@ -31,10 +31,14 @@ const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE;
 function generateShopeeSignature(path, params, timestamp) {
     let baseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timestamp}`;
 
-    // A string base para SIGN é simplesmente: partner_id + api_path + timestamp
-    // conforme a documentação para Common Parameters (primeiro nível)
-    // para a chamada de token/get e access_token/get.
-    // Os parâmetros do corpo (code, shop_id, refresh_token) NÃO são parte da string base do HMAC.
+    // A string base para a assinatura é P.I. + PATH + TIMESTAMP.
+    // Para as chamadas de token (get_token, refresh_token), os parâmetros do corpo
+    // não são incluídos na string base para a assinatura 'sign'.
+    // Apenas os common parameters (partner_id, timestamp, sign, access_token, shop_id - se aplicável)
+    // são usados na string base.
+    // Para token/get e access_token/get, os únicos common parameters que já existem
+    // no momento da assinatura são partner_id, path e timestamp.
+    // Por isso, o `params` passado para `generateShopeeSignature` neste contexto é vazio `{}`.
 
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE)
         .update(baseString)
@@ -55,8 +59,8 @@ async function getAccessTokenFromCode(code, shopId) {
     
     const body = {
         code: code,
-        shop_id: Number(shopId), // Certifique-se de que é um número
-        partner_id: Number(SHOPEE_PARTNER_ID_LIVE) // Certifique-se de que é um número
+        shop_id: Number(shopId),
+        partner_id: Number(SHOPEE_PARTNER_ID_LIVE)
     };
 
     const signature = generateShopeeSignature(path, {}, timestamp); // Não passa body params para a assinatura inicial
@@ -124,8 +128,8 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
 
 // --- Rotas da API ---
 
-// Rota de callback da Shopee - Escutando na RAIZ (/)
-// Este é o endpoint onde a Shopee redirecionará após a autorização.
+// Rota de callback da Shopee - AGORA ESCUTANDO NA RAIZ (/)
+// Este é o endpoint onde a Shopee redirecionará seu navegador após a autorização da loja.
 router.get('/', async (req, res) => {
     const { code, shop_id } = req.query; 
 
@@ -143,8 +147,8 @@ router.get('/', async (req, res) => {
                     access_token: tokens.access_token,
                     refresh_token: tokens.refresh_token,
                     expires_at: new Date(Date.now() + tokens.expire_in * 1000).toISOString(), 
-                    partner_id: SHOPEE_PARTNER_ID_LIVE // Salva o partner_id usado
-                }, { onConflict: 'shop_id' }); // Conflito no shop_id para atualizar se já existir
+                    partner_id: SHOPEE_PARTNER_ID_LIVE 
+                }, { onConflict: 'shop_id' }); 
 
             if (upsertError) {
                 console.error('❌ [API_ROUTE] Erro ao salvar tokens no Supabase:', upsertError.message);
@@ -166,10 +170,8 @@ router.get('/', async (req, res) => {
             res.status(500).json({ error: 'Erro ao obter access token da Shopee', details: error.message });
         }
     } else {
-        // Se a rota raiz for acessada sem os parâmetros 'code' e 'shop_id',
-        // significa que não é um callback de autorização, mas sim uma verificação
-        // simples de que o servidor está online.
-        console.log('[API_ROUTE] Rota raiz acionada. (Não é um callback de autorização, apenas verificação de status).');
+        // Se a rota raiz for acessada sem code e shop_id, mostra uma mensagem simples
+        console.log('[API_ROUTE] Rota raiz acionada. (Não é um callback de autorização).');
         res.status(200).send('Servidor BI Marketplace Integrator rodando! Aguardando callback de autorização da Shopee.');
     }
 });
@@ -183,7 +185,7 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         return res.status(400).json({ error: 'shopId é obrigatório na query.' });
     }
 
-    console.log(`[API_ROUTE] Endpoint /auth/shopee/fetch-orders acionado para Shop ID: ${shopId}.`);
+    console.log(`[API_ROUTE] Endpoint /shopee/fetch-orders acionado para Shop ID: ${shopId}.`);
 
     try {
         // 1. Obter tokens do Supabase para o shopId
