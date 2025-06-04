@@ -72,7 +72,7 @@ async function getAccessTokenFromCode(code, shopId) {
     const requestBody = {
         code: code,
         shop_id: Number(shopId),
-        partner_id: partnerId // partner_id no corpo da requisição
+        partner_id: String(partnerId) // partner_id no corpo da requisição
     };
 
     // >>>>> MUDANÇA CRÍTICA AQUI: REMOVIDO JSON.stringify(requestBody) da baseString <<<<<
