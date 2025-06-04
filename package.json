@@ -20,6 +20,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.x.x",  
     "axios": "^1.x.x",
+    "cors": "^2.8.5", // <--- ADICIONE ESTA LINHA!
     "dotenv": "^16.x.x",
     "express": "^4.x.x",
     "crypto-js": "^4.x.x"
