@@ -37,7 +37,7 @@ if (!SHOPEE_PARTNER_ID_LIVE || !SHOPEE_API_KEY_LIVE || !SHOPEE_API_HOST_LIVE) {
 async function getAccessTokenFromCode(code, shopId) {
     const path = "/api/v2/auth/token/get"; // Endpoint correto para obter token pela primeira vez
     const timestamp = Math.floor(Date.now() / 1000);
-    const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); // Garante que é um número
+    const partnerId = Number(SHOPEE_PARTENER_ID_LIVE); // Garante que é um número
 
     const requestBody = {
         code: code,
@@ -46,11 +46,11 @@ async function getAccessTokenFromCode(code, shopId) {
     };
 
     // Assinatura para token/get DEVE incluir o JSON.stringify(requestBody)
-    const baseString = `<span class="math-inline">\{partnerId\}</span>{path}<span class="math-inline">\{timestamp\}</span>{JSON.stringify(requestBody)}`;
+    const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    // MUDANÇA AQUI: Adiciona sign na query string da URL
-    const url = `<span class="math-inline">\{SHOPEE\_API\_HOST\_LIVE\}</span>{path}?partner_id=<span class="math-inline">\{partnerId\}&timestamp\=</span>{timestamp}&sign=${sign}`; 
+    // Adiciona partner_id, timestamp e sign na query string da URL
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`; 
 
     try {
         const response = await axios.post(url, requestBody, {
@@ -96,11 +96,11 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
     };
 
     // Assinatura para access_token/get DEVE incluir o JSON.stringify(requestBody)
-    const baseString = `<span class="math-inline">\{partnerId\}</span>{path}<span class="math-inline">\{timestamp\}</span>{JSON.stringify(requestBody)}`;
+    const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    // MUDANÇA AQUI: Adiciona sign na query string da URL
-    const url = `<span class="math-inline">\{SHOPEE\_API\_HOST\_LIVE\}</span>{path}?partner_id=<span class="math-inline">\{partnerId\}&timestamp\=</span>{timestamp}&sign=${sign}`;
+    // Adiciona partner_id, timestamp e sign na query string da URL
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
 
     try {
         const response = await axios.post(url, requestBody, {
@@ -264,11 +264,11 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
 
         // Assinatura para get_order_list (GET)
-        const baseStringOrderList = `<span class="math-inline">\{partnerId\}</span>{ordersPath}<span class="math-inline">\{timestamp\}</span>{accessToken}${Number(shopId)}`;
+        const baseStringOrderList = `${partnerId}${ordersPath}${timestamp}${accessToken}${Number(shopId)}`;
         const signatureOrderList = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseStringOrderList).digest('hex');
 
         // Construindo a URL para a requisição GET
-        const ordersUrl = `<span class="math-inline">\{SHOPEE\_API\_HOST\_LIVE\}</span>{ordersPath}?partner_id=<span class="math-inline">\{partnerId\}&timestamp\=</span>{timestamp}&sign=<span class="math-inline">\{signatureOrderList\}&access\_token\=</span>{accessToken}&shop_id=${shopId}&order_status=READY_TO_SHIP&page_size=10`;
+        const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${signatureOrderList}&access_token=${accessToken}&shop_id=${shopId}&order_status=READY_TO_SHIP&page_size=10`;
 
         console.log(`[SHOPEE_API] Chamando: ${ordersUrl}`);
 
@@ -352,4 +352,58 @@ router.get('/auth/shopee/normalize', async (req, res) => {
                 const totalAmount = parseFloat(originalData.total_amount) || 0;
                 const shippingFee = parseFloat(originalData.actual_shipping_fee) || 0;
 
-                const liquidValue
+                // CORREÇÃO AQUI: Inicializador de const
+                const liquidValue = totalAmount - shippingFee; 
+
+                const normalizedData = {
+                    client_id: clientId,
+                    platform_id: 1,
+                    order_sn: originalData.order_sn,
+                    order_status: originalData.order_status,
+                    total_amount: totalAmount,
+                    shipping_fee: shippingFee,
+                    liquid_value: liquidValue,
+                    currency: originalData.currency,
+                    created_at: new Date(originalData.create_time * 1000).toISOString(),
+                    updated_at: new Date(originalData.update_time * 1000).toISOString(),
+                    recipient_name: originalData.recipient_address ? originalData.recipient_address.name : null,
+                    recipient_phone: originalData.recipient_address ? originalData.recipient_address.phone : null,
+                    shipping_carrier: originalData.shipping_carrier,
+                    payment_method: originalData.payment_method,
+                    buyer_username: originalData.buyer_username,
+                    shop_id: originalData.shop_id,
+                };
+                normalizedOrders.push(normalizedData);
+
+                updateRawStatus.push(rawOrder.order_sn);
+
+            } catch (parseError) {
+                console.error(`❌ [NORMALIZER] Erro ao normalizar pedido SN: ${rawOrder.order_sn}. Erro: ${parseError.message}`);
+            }
+        }
+
+        if (normalizedOrders.length > 0) {
+            const { error: insertNormalizedError } = await supabase
+                .from('orders_detail_normalized')
+                .upsert(normalizedOrders, { onConflict: 'order_sn' });
+
+            if (insertNormalizedError) {
+                console.error('❌ [NORMALIZER] Erro ao salvar pedidos normalizados no Supabase:', insertNormalizedError.message);
+                return res.status(500).json({ error: 'Erro ao salvar pedidos normalizados', details: insertNormalizedError.message });
+            } else {
+                console.log(`✅ [NORMALIZER] ${normalizedOrders.length} pedidos normalizados e salvos em orders_detail_normalized.`);
+
+                res.status(200).json({ message: 'Pedidos normalizados com sucesso!', normalizedCount: normalizedOrders.length });
+            }
+        } else {
+            console.log('[NORMALIZER] Nenhuns pedidos foram processados para normalização.');
+            res.status(200).json({ message: 'Nenhuns pedidos foram processados para normalização.', normalizedCount: 0 });
+        }
+
+    } catch (error) {
+        console.error('❌ [NORMALIZER] Erro geral no processo de normalização:', error.message);
+        res.status(500).json({ error: 'Falha no processo de normalização de pedidos.', details: error.message });
+    }
+});
+
+module.exports = router;
