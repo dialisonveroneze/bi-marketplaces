@@ -3,7 +3,7 @@ const axios = require('axios');
 const { supabase } = require('../../database');
 const { generateShopeeSignature } = require('../../utils/security');
 
-// Variáveis de ambiente - Certifique-se de que estão definidas
+// Variáveis de ambiente - Certifique-se de que estão definidas no Render
 const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE;
 const SHOPEE_PARTNER_ID_LIVE = process.env.SHOPEE_PARTNER_ID_LIVE;
 const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE;
@@ -11,14 +11,9 @@ const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE;
 /**
  * Busca detalhes de pedidos da Shopee para uma determinada loja e os salva no banco de dados.
  *
- * NOTA: Esta função agora buscará os detalhes completos dos pedidos usando
- * o endpoint get_order_detail, que requer uma lista de order_sn.
- * Para simplificar o teste inicial, vamos simular esta lista.
- * Em um cenário real, você buscaria os order_sn com get_order_list primeiro.
- *
- * @param {number} shopId O ID da loja Shopee.
+ * @param {string} shopId O ID da loja Shopee.
  * @param {string} accessToken O access token válido para a loja.
- * @param {string} connectionId O ID da conexão no Supabase para esta loja (usado como client_id).
+ * @param {number} connectionId O ID da conexão no Supabase para esta loja (usado como client_id).
  * @returns {Array} Uma lista dos pedidos processados.
  * @throws {Error} Se a requisição à Shopee falhar ou os pedidos não puderem ser salvos.
  */
@@ -27,52 +22,70 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
   console.log(`[DEBUG_SHOPEE] access_token recebido (parcial): ${accessToken ? accessToken.substring(0, 10) + '...' : 'NULO/UNDEFINED'}`);
   console.log(`[DEBUG_SHOPEE] connectionId recebido: ${connectionId}`);
 
-  // --- ALTERAÇÕES AQUI ---
-  // 1. Mudança de Endpoint
   const path = '/api/v2/order/get_order_detail';
   const timestamp = Math.floor(Date.now() / 1000); // Timestamp atual em segundos
 
-  // 2. Parâmetros para get_order_detail
-  // Para testar, precisamos de alguns Order SNs válidos.
-  // Em produção, esses Order SNs viriam de uma chamada prévia a get_order_list.
-  // Por ora, vamos pegar os primeiros da sua lista para teste.
-  // Se você limpou a tabela, e não tem order_sn's recentes, pode ter que pegar
-  // alguns da documentação da Shopee ou de um pedido real recente na sua conta.
-  // Vou colocar alguns exemplos fictícios, ajuste se necessário.
-  const sampleOrderSNs = [
-      "250604KPPCYPKG", // Exemplo de Order SNs que apareceram nos seus logs anteriores
-      "250604KPPTA2C6",
-      "250604KPUY8PVE",
-      "250604KPW5E82Y",
-      "250604KQQM9RW5"
-  ];
+  // --- Importante: Em produção, você obteria esses order_sn_list de uma chamada prévia a get_order_list ---
+  // Por ora, vamos usar os order_sn's de exemplo ou buscar os existentes na sua tabela orders_raw_shopee.
+  let order_sn_list_to_fetch = [];
+  try {
+      // Tenta buscar os order_sn's já salvos na orders_raw_shopee para ter dados reais.
+      // Ajuste o 'limit' conforme a necessidade e a capacidade da API Shopee (geralmente até 100).
+      const { data: existingOrders, error: fetchError } = await supabase
+          .from('orders_raw_shopee')
+          .select('order_id')
+          .limit(50); // Pegamos até 50 para o teste
 
-  // Adicionar mais SNs até o limite (50 ou 100).
-  // Se você tiver uma maneira de obter uma lista maior e real de Order SNs,
-  // substitua `sampleOrderSNs` por essa lista.
-  // Por exemplo, você poderia buscar os `order_id`s já salvos na sua tabela.
-  const order_sn_list = sampleOrderSNs; // Usaremos esta lista para a requisição
+      if (fetchError) {
+          console.warn('⚠️ [DEBUG_SHOPEE] Não foi possível buscar order_sn_list existentes:', fetchError.message);
+          // Se não conseguir, usa uma lista de amostra para não quebrar o processo
+          order_sn_list_to_fetch = [
+              "250604KPPCYPKG", // Exemplo de Order SNs que apareceram nos seus logs anteriores
+              "250604KPPTA2C6",
+              "250604KPUY8PVE",
+              "250604KPW5E82Y",
+              "250604KQQM9RW5"
+          ];
+      } else if (existingOrders.length > 0) {
+          order_sn_list_to_fetch = existingOrders.map(order => order.order_id);
+          console.log(`[DEBUG_SHOPEE] Usando ${order_sn_list_to_fetch.length} order_sn's existentes para get_order_detail.`);
+      } else {
+          // Se não houver pedidos existentes, usa a lista de amostra
+          order_sn_list_to_fetch = [
+              "250604KPPCYPKG",
+              "250604KPPTA2C6",
+              "250604KPUY8PVE",
+              "250604KPW5E82Y",
+              "250604KQQM9RW5"
+          ];
+          console.log(`[DEBUG_SHOPEE] Usando ${order_sn_list_to_fetch.length} order_sn's de amostra para get_order_detail (nenhum existente).`);
+      }
+  } catch (err) {
+      console.error('❌ [DEBUG_SHOPEE] Erro ao tentar buscar order_sn_list existentes:', err.message);
+      // Fallback para lista de amostra se houver um erro inesperado
+      order_sn_list_to_fetch = [
+          "250604KPPCYPKG",
+          "250604KPPTA2C6",
+          "250604KPUY8PVE",
+          "250604KPW5E82Y",
+          "250604KQQM9RW5"
+      ];
+  }
 
-  // Campos opcionais para get_order_detail
+  if (order_sn_list_to_fetch.length === 0) {
+      console.warn('[DEBUG_SHOPEE] Nenhuns order_sn para buscar detalhes. Encerrando.');
+      return [];
+  }
+
   const response_optional_fields = 'item_list,recipient_address,payment_info';
 
   const queryParams = {
     partner_id: Number(SHOPEE_PARTNER_ID_LIVE),
     shop_id: Number(shopId),
     timestamp: timestamp,
-    order_sn_list: order_sn_list.join(','), // A API espera uma string separada por vírgulas
+    order_sn_list: order_sn_list_to_fetch.join(','), // A API espera uma string separada por vírgulas
     response_optional_fields: response_optional_fields,
   };
-
-  // Log dos parâmetros que serão usados na assinatura
-  console.log('[DEBUG_SHOPEE] Gerando assinatura com os seguintes parâmetros:');
-  console.log(`  - path: ${path}`);
-  console.log(`  - partner_id: ${queryParams.partner_id}`);
-  console.log(`  - timestamp: ${queryParams.timestamp}`);
-  console.log(`  - shop_id: ${queryParams.shop_id}`);
-  console.log(`  - access_token (parcial para assinatura): ${accessToken ? accessToken.substring(0, 10) + '...' : 'NULO/UNDEFINED'}`);
-  console.log(`  - order_sn_list: ${queryParams.order_sn_list}`);
-  console.log(`  - response_optional_fields: ${queryParams.response_optional_fields}`);
 
   const sign = generateShopeeSignature({
     path: path,
@@ -81,18 +94,17 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
     timestamp: timestamp,
     access_token: accessToken,
     shop_id: shopId,
-    order_sn_list: queryParams.order_sn_list, // Deve ser a string separada por vírgulas
+    order_sn_list: queryParams.order_sn_list,
     response_optional_fields: queryParams.response_optional_fields,
   });
 
-  // A ordem dos parâmetros na queryString é crucial para a assinatura
   const orderedQueryParams = {
     access_token: accessToken,
     partner_id: queryParams.partner_id,
-    order_sn_list: queryParams.order_sn_list, // Certifique-se de que é a string
+    order_sn_list: queryParams.order_sn_list,
     shop_id: queryParams.shop_id,
     timestamp: queryParams.timestamp,
-    response_optional_fields: queryParams.response_optional_fields, // Deve vir ordenado
+    response_optional_fields: queryParams.response_optional_fields,
   };
 
   const queryString = Object.keys(orderedQueryParams)
@@ -118,35 +130,37 @@ async function fetchShopeeOrders(shopId, accessToken, connectionId) {
     console.log('----------------------------------------------------');
 
     if (response.data && response.data.response && Array.isArray(response.data.response.order_list)) {
-      const orders = response.data.response.order_list; // A resposta ainda vem em 'order_list'
-      console.log(`[DEBUG_SHOPEE] Encontrados ${orders.length} detalhes de pedidos.`);
+      const shopeeOrdersDetails = response.data.response.order_list;
+      console.log(`[DEBUG_SHOPEE] Encontrados ${shopeeOrdersDetails.length} detalhes de pedidos da Shopee.`);
 
-      if (orders.length > 0) {
-        const ordersToUpsert = orders.map(order => ({
-          client_id: 1, // Mantemos fixo como débito técnico, conforme acordado
-          order_id: order.order_sn, // order_sn é o ID do pedido
+      if (shopeeOrdersDetails.length > 0) {
+        // --- 1. Salvar/Atualizar JSON Bruto em orders_raw_shopee ---
+        const rawOrdersToUpsert = shopeeOrdersDetails.map(order => ({
+          client_id: connectionId, // Usamos o connectionId passado como client_id
+          order_id: order.order_sn,
           raw_data: order, // Salva o objeto de detalhe de pedido completo
+          is_processed: false // NOVO: Marca como não processado para a normalização
         }));
 
-        console.log(`[DEBUG_SHOPEE] Preparando ${ordersToUpsert.length} detalhes de pedidos para upsert no Supabase.`);
-        
-        const { error: insertError } = await supabase
+        console.log(`[DEBUG_SHOPEE] Preparando ${rawOrdersToUpsert.length} pedidos RAW para upsert em orders_raw_shopee.`);
+        const { error: rawInsertError } = await supabase
           .from('orders_raw_shopee')
-          .upsert(ordersToUpsert, { 
-            onConflict: ['order_id'], // Usa order_id para conflito (upsert)
+          .upsert(rawOrdersToUpsert, { 
+            onConflict: ['order_id'],
             ignoreDuplicates: false
           });
 
-        if (insertError) {
-          console.error('❌ [fetchShopeeOrders] Erro ao salvar detalhes de pedidos no Supabase:', insertError.message);
-          throw insertError;
+        if (rawInsertError) {
+          console.error('❌ [fetchShopeeOrders] Erro ao salvar RAW data em orders_raw_shopee:', rawInsertError.message);
+          // Não lançar erro aqui para permitir a normalização (se fosse chamado aqui)
+        } else {
+          console.log(`✅ [fetchShopeeOrders] ${rawOrdersToUpsert.length} pedidos RAW salvos/atualizados em orders_raw_shopee.`);
         }
-        console.log(`✅ [fetchShopeeOrders] ${orders.length} detalhes de pedidos salvos/atualizados no Supabase.`);
       } else {
         console.log('[DEBUG_SHOPEE] Nenhuns detalhes de pedidos para salvar no Supabase.');
       }
       
-      return orders;
+      return shopeeOrdersDetails; // Retorna os detalhes obtidos da Shopee
 
     } else if (response.data.error || response.data.message) {
         const shopeeError = response.data.error || 'N/A';

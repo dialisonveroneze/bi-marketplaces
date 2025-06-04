@@ -16,7 +16,7 @@ async function normalizeOrdersShopee(client_id) {
       .from('orders_raw_shopee')
       .select('order_id, raw_data')
       .eq('is_processed', false)
-      .eq('client_id', client_id);
+      .eq('client_id', client_id); // Filtrar pelo client_id para garantir relevância
 
     if (fetchError) {
       console.error('❌ [NORMALIZER] Erro ao buscar pedidos brutos não processados:', fetchError.message);
@@ -31,13 +31,13 @@ async function normalizeOrdersShopee(client_id) {
     console.log(`[NORMALIZER] Encontrados ${rawOrders.length} pedidos brutos para normalizar.`);
 
     const normalizedOrdersToUpsert = rawOrders.map(rawOrder => {
-      const order = rawOrder.raw_data;
+      const order = rawOrder.raw_data; // O JSON completo está na coluna 'raw_data'
 
       // Helper para garantir que um valor é um número, mesmo se vier como string.
-      // Retorna 0 se for undefined, null, ou não puder ser convertido.
+      // Retorna 0 se for undefined, null, vazio ou não puder ser convertido (NaN).
       const parseNumeric = (value) => {
         if (value === undefined || value === null || value === '') {
-          return 0; // Ou outro valor padrão que faça sentido, como null
+          return 0; 
         }
         const parsed = parseFloat(value);
         return isNaN(parsed) ? 0 : parsed;
@@ -59,14 +59,11 @@ async function normalizeOrdersShopee(client_id) {
         update_time_utc: parseTimestamp(order.update_time),
         pay_time_utc: order.payment_info ? parseTimestamp(order.payment_info.pay_time) : null,
 
-        // --- ALTERAÇÃO AQUI: Usando parseNumeric para todos os campos numéricos ---
+        // Usando parseNumeric para garantir que os valores sejam números
         total_amount: parseNumeric(order.total_amount),
         shipping_fee: parseNumeric(order.shipping_fee),
         actual_shipping_fee: parseNumeric(order.actual_shipping_fee),
         paid_amount: order.payment_info ? parseNumeric(order.payment_info.paid_amount) : 0,
-        // --- FIM DA ALTERAÇÃO ---
-
-        payment_method: order.payment_info ? order.payment_info.payment_method : null,
         currency: order.currency,
 
         recipient_name: order.recipient_address ? order.recipient_address.name : null,
@@ -86,7 +83,7 @@ async function normalizeOrdersShopee(client_id) {
     const { error: upsertError } = await supabase
       .from('orders_detail_normalized')
       .upsert(normalizedOrdersToUpsert, {
-        onConflict: ['order_id'],
+        onConflict: ['order_id'], // Usa order_id para conflito (upsert)
         ignoreDuplicates: false
       });
 

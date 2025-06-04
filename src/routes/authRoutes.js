@@ -4,15 +4,13 @@ const router = express.Router();
 // Você pode ter outros imports aqui, como o middleware de autenticação, etc.
 
 const { fetchShopeeOrders } = require('../api/shopee/orders');
-const { normalizeOrdersShopee } = require('../api/shopee/normalizeOrdersShopee'); // IMPORT DA NOVA FUNÇÃO
+const { normalizeOrdersShopee } = require('../api/shopee/normalizeOrdersShopee');
 
 // Endpoint para buscar e salvar dados RAW da Shopee
 router.get('/shopee/fetch-orders', async (req, res) => {
-  // Lógica para obter shopId, accessToken, connectionId
-  // IMPORTANTE: Essas variáveis devem ser configuradas nas variáveis de ambiente do Render!
-  const shopId = process.env.SHOPEE_SHOP_ID_LIVE;
-  const accessToken = process.env.SHOPEE_ACCESS_TOKEN_LIVE;
-  const connectionId = 1; // client_id fixo por enquanto, conforme o débito técnico
+  // --- ALTERAÇÃO AQUI: Obter shopId e accessToken da query string da URL ---
+  const { shopId, accessToken } = req.query; // Pega da URL: /fetch-orders?shopId=SEU_SHOP_ID&accessToken=SEU_ACCESS_TOKEN
+  const connectionId = 1; // client_id fixo por enquanto
 
   if (!shopId || !accessToken) {
     return res.status(400).json({ error: 'Shop ID e Access Token são necessários.' });
@@ -27,11 +25,9 @@ router.get('/shopee/fetch-orders', async (req, res) => {
   }
 });
 
-// --- NOVO ENDPOINT PARA NORMALIZAÇÃO ---
-// Este endpoint aciona o processo de normalização dos dados brutos
+// NOVO ENDPOINT PARA NORMALIZAÇÃO
 router.get('/shopee/normalize', async (req, res) => {
-  // O client_id fixo que a função de normalização espera
-  const fixedClientId = 1; // Mantém a consistência com o que é salvo no RAW
+  const fixedClientId = 1; // client_id fixo para a normalização
 
   try {
     console.log(`[API_ROUTE] Endpoint /shopee/normalize acionado.`);
