@@ -1,14 +1,13 @@
 // src/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
-// Você pode ter outros imports aqui, como o middleware de autenticação, etc.
 
 const { fetchShopeeOrders } = require('../api/shopee/orders');
 const { normalizeOrdersShopee } = require('../api/shopee/normalizeOrdersShopee');
+const { getAccessTokenFromCode } = require('../api/shopee/auth'); // NOVO IMPORT
 
 // Endpoint para buscar e salvar dados RAW da Shopee
 router.get('/shopee/fetch-orders', async (req, res) => {
-  // --- ALTERAÇÃO AQUI: Obter shopId e accessToken da query string da URL ---
   const { shopId, accessToken } = req.query; // Pega da URL: /fetch-orders?shopId=SEU_SHOP_ID&accessToken=SEU_ACCESS_TOKEN
   const connectionId = 1; // client_id fixo por enquanto
 
@@ -25,7 +24,7 @@ router.get('/shopee/fetch-orders', async (req, res) => {
   }
 });
 
-// NOVO ENDPOINT PARA NORMALIZAÇÃO
+// Endpoint para normalização de pedidos (pode ser disparado manualmente)
 router.get('/shopee/normalize', async (req, res) => {
   const fixedClientId = 1; // client_id fixo para a normalização
 
@@ -36,6 +35,32 @@ router.get('/shopee/normalize', async (req, res) => {
   } catch (error) {
     console.error('Erro durante o processo de normalização:', error.message);
     res.status(500).json({ error: 'Erro ao normalizar pedidos Shopee', details: error.message });
+  }
+});
+
+// NOVO ENDPOINT: Recebe o code de autorização da Shopee e troca por access_token
+router.get('/shopee/get-token-from-code', async (req, res) => {
+  const { code, shop_id } = req.query; // A Shopee envia 'shop_id' (com underscore)
+
+  if (!code || !shop_id) {
+    return res.status(400).json({ error: 'Parâmetros "code" e "shop_id" são necessários na URL.' });
+  }
+
+  try {
+    console.log(`[API_ROUTE] Endpoint /shopee/get-token-from-code acionado para Shop ID: ${shop_id}`);
+    const tokens = await getAccessTokenFromCode(code, shop_id);
+    
+    // Você pode decidir salvar esses tokens no Supabase aqui, mas por agora, apenas retornamos
+    res.status(200).json({
+      message: 'Access Token e Refresh Token obtidos com sucesso!',
+      shopId: shop_id,
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      expiresIn: tokens.expire_in // Tempo de expiração em segundos
+    });
+  } catch (error) {
+    console.error('Erro ao obter access token da Shopee:', error.message);
+    res.status(500).json({ error: 'Erro ao obter access token da Shopee', details: error.message });
   }
 });
 
