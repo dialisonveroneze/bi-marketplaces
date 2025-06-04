@@ -128,13 +128,20 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
 
 // --- Rotas da API ---
 
-// Rota de callback da Shopee - AGORA ESCUTANDO NA RAIZ (/)
-// Este é o endpoint onde a Shopee redirecionará seu navegador após a autorização da loja.
-router.get('/', async (req, res) => {
+// Rota raiz - para verificar se o servidor está rodando
+// Esta rota exibe uma mensagem simples quando acessada diretamente sem parâmetros de callback.
+router.get('/', (req, res) => {
+    res.status(200).send('Servidor BI Marketplace Integrator rodando! Use /auth/shopee/callback para autorização.');
+});
+
+
+// Endpoint de Callback da Shopee - Onde a Shopee redireciona APÓS a autorização
+// Esta rota agora escuta no caminho /auth/shopee/callback, como a Shopee está enviando.
+router.get('/auth/shopee/callback', async (req, res) => {
     const { code, shop_id } = req.query; 
 
     if (code && shop_id) {
-        console.log(`[API_ROUTE] Endpoint RAIZ acionado com code e shop_id para Shop ID: ${shop_id}`);
+        console.log(`[API_ROUTE] Endpoint /auth/shopee/callback acionado com code e shop_id para Shop ID: ${shop_id}`);
         try {
             const tokens = await getAccessTokenFromCode(code, shop_id);
 
@@ -147,8 +154,8 @@ router.get('/', async (req, res) => {
                     access_token: tokens.access_token,
                     refresh_token: tokens.refresh_token,
                     expires_at: new Date(Date.now() + tokens.expire_in * 1000).toISOString(), 
-                    partner_id: SHOPEE_PARTNER_ID_LIVE 
-                }, { onConflict: 'shop_id' }); 
+                    partner_id: SHOPEE_PARTNER_ID_LIVE // Salva o partner_id usado
+                }, { onConflict: 'shop_id' }); // Conflito no shop_id para atualizar se já existir
 
             if (upsertError) {
                 console.error('❌ [API_ROUTE] Erro ao salvar tokens no Supabase:', upsertError.message);
@@ -170,9 +177,8 @@ router.get('/', async (req, res) => {
             res.status(500).json({ error: 'Erro ao obter access token da Shopee', details: error.message });
         }
     } else {
-        // Se a rota raiz for acessada sem code e shop_id, mostra uma mensagem simples
-        console.log('[API_ROUTE] Rota raiz acionada. (Não é um callback de autorização).');
-        res.status(200).send('Servidor BI Marketplace Integrator rodando! Aguardando callback de autorização da Shopee.');
+        console.log('[API_ROUTE] Parâmetros code ou shop_id ausentes na requisição de callback. Esta rota espera um callback da Shopee.');
+        res.status(400).json({ error: 'Parâmetros code ou shop_id ausentes. A autorização pode não ter sido bem-sucedida.' });
     }
 });
 
