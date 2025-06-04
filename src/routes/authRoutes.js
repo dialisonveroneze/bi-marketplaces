@@ -37,7 +37,8 @@ if (!SHOPEE_PARTNER_ID_LIVE || !SHOPEE_API_KEY_LIVE || !SHOPEE_API_HOST_LIVE) {
 async function getAccessTokenFromCode(code, shopId) {
     const path = "/api/v2/auth/token/get"; // Endpoint correto para obter token pela primeira vez
     const timestamp = Math.floor(Date.now() / 1000);
-    const partnerId = Number(SHOPEE_PARTENER_ID_LIVE); // Garante que é um número
+    // CORREÇÃO AQUI: "SHOPEE_PARTNER_ID_LIVE" em vez de "SHOPEE_PARTENER_ID_LIVE"
+    const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); 
 
     const requestBody = {
         code: code,
@@ -87,7 +88,8 @@ async function getAccessTokenFromCode(code, shopId) {
 async function refreshShopeeAccessToken(shopId, refreshToken) {
     const path = "/api/v2/auth/access_token/get"; // Endpoint para refrescar token
     const timestamp = Math.floor(Date.now() / 1000);
-    const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); // Garante que é um número
+    // CORREÇÃO AQUI: "SHOPEE_PARTNER_ID_LIVE" em vez de "SHOPEE_PARTENER_ID_LIVE"
+    const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); 
 
     const requestBody = {
         shop_id: Number(shopId),
@@ -352,7 +354,6 @@ router.get('/auth/shopee/normalize', async (req, res) => {
                 const totalAmount = parseFloat(originalData.total_amount) || 0;
                 const shippingFee = parseFloat(originalData.actual_shipping_fee) || 0;
 
-                // CORREÇÃO AQUI: Inicializador de const
                 const liquidValue = totalAmount - shippingFee; 
 
                 const normalizedData = {
