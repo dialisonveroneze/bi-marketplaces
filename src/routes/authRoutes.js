@@ -37,25 +37,27 @@ if (!SHOPEE_PARTNER_ID_LIVE || !SHOPEE_API_KEY_LIVE || !SHOPEE_API_HOST_LIVE) {
 async function getAccessTokenFromCode(code, shopId) {
     const path = "/api/v2/auth/token/get"; // Endpoint correto para obter token pela primeira vez
     const timestamp = Math.floor(Date.now() / 1000);
+    const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); // Garante que é um número
 
     const requestBody = {
         code: code,
         shop_id: Number(shopId),
-        partner_id: Number(SHOPEE_PARTNER_ID_LIVE)
+        partner_id: partnerId // partner_id no corpo da requisição
     };
 
     // Assinatura para token/get DEVE incluir o JSON.stringify(requestBody)
-    const baseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timestamp}${JSON.stringify(requestBody)}`;
+    const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    const url = `${SHOPEE_API_HOST_LIVE}${path}`;
+    // MUDANÇA AQUI: Adiciona partner_id na query string da URL para resolver o erro "There is no partner_id in query."
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}`; 
 
     try {
         const response = await axios.post(url, requestBody, {
             headers: {
                 'Content-Type': 'application/json',
                 'Host': new URL(SHOPEE_API_HOST_LIVE).host,
-                'partner_id': SHOPEE_PARTNER_ID_LIVE,
+                'partner_id': partnerId, // partner_id nos headers
                 'timestamp': timestamp,
                 'sign': sign
             }
@@ -85,25 +87,27 @@ async function getAccessTokenFromCode(code, shopId) {
 async function refreshShopeeAccessToken(shopId, refreshToken) {
     const path = "/api/v2/auth/access_token/get"; // Endpoint para refrescar token
     const timestamp = Math.floor(Date.now() / 1000);
+    const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); // Garante que é um número
 
     const requestBody = {
         shop_id: Number(shopId),
         refresh_token: refreshToken,
-        partner_id: Number(SHOPEE_PARTNER_ID_LIVE)
+        partner_id: partnerId // partner_id no corpo da requisição
     };
 
     // Assinatura para access_token/get DEVE incluir o JSON.stringify(requestBody)
-    const baseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timestamp}${JSON.stringify(requestBody)}`;
+    const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    const url = `${SHOPEE_API_HOST_LIVE}${path}`;
+    // MUDANÇA AQUI: Adiciona partner_id na query string da URL para resolver o erro "There is no partner_id in query."
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}`;
 
     try {
         const response = await axios.post(url, requestBody, {
             headers: {
                 'Content-Type': 'application/json',
                 'Host': new URL(SHOPEE_API_HOST_LIVE).host,
-                'partner_id': SHOPEE_PARTNER_ID_LIVE,
+                'partner_id': partnerId, // partner_id nos headers
                 'timestamp': timestamp,
                 'sign': sign
             }
@@ -132,7 +136,6 @@ router.get('/', (req, res) => {
 });
 
 // Endpoint de Callback da Shopee - Onde a Shopee redireciona APÓS a autorização
-// Esta rota volta a escutar no caminho /auth/shopee/callback
 router.get('/auth/shopee/callback', async (req, res) => {
     const { code, shop_id } = req.query;
 
@@ -145,8 +148,7 @@ router.get('/auth/shopee/callback', async (req, res) => {
 
     const partnerId = process.env.SHOPEE_PARTNER_ID_LIVE;
     const partnerKey = process.env.SHOPEE_API_KEY_LIVE;
-    // IMPORTANTE: redirectUrl precisa ser a URL COMPLETA que a Shopee realmente redireciona
-    const redirectUrl = process.env.SHOPEE_REDIRECT_URL_LIVE; 
+    const redirectUrl = process.env.SHOPEE_REDIRECT_URL_LIVE; // A URL COMPLETA
     const apiHost = process.env.SHOPEE_API_HOST_LIVE;
 
     // Validação básica para garantir que as variáveis de ambiente estão definidas
@@ -259,13 +261,14 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
 
         const ordersPath = "/api/v2/order/get_order_list";
         const timestamp = Math.floor(Date.now() / 1000);
+        const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
 
         // Assinatura para get_order_list (GET)
-        const baseStringOrderList = `${SHOPEE_PARTNER_ID_LIVE}${ordersPath}${timestamp}${accessToken}${Number(shopId)}`;
+        const baseStringOrderList = `${partnerId}${ordersPath}${timestamp}${accessToken}${Number(shopId)}`;
         const signatureOrderList = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseStringOrderList).digest('hex');
 
         // Construindo a URL para a requisição GET
-        const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?partner_id=${SHOPEE_PARTNER_ID_LIVE}&timestamp=${timestamp}&sign=${signatureOrderList}&access_token=${accessToken}&shop_id=${shopId}&order_status=READY_TO_SHIP&page_size=10`;
+        const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${signatureOrderList}&access_token=${accessToken}&shop_id=${shopId}&order_status=READY_TO_SHIP&page_size=10`;
 
         console.log(`[SHOPEE_API] Chamando: ${ordersUrl}`);
 
