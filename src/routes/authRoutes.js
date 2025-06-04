@@ -49,6 +49,15 @@ async function getAccessTokenFromCode(code, shopId) {
     const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
+    // >>>>> LOGS DE DEPURACÃO PARA "Wrong sign" <<<<<
+    console.log(`[DEBUG_SIGN_GET_TOKEN] Partner ID: ${partnerId}`);
+    console.log(`[DEBUG_SIGN_GET_TOKEN] Path: ${path}`);
+    console.log(`[DEBUG_SIGN_GET_TOKEN] Timestamp: ${timestamp}`);
+    console.log(`[DEBUG_SIGN_GET_TOKEN] Request Body (stringified): ${JSON.stringify(requestBody)}`);
+    console.log(`[DEBUG_SIGN_GET_TOKEN] Base String COMPLETA: ${baseString}`);
+    console.log(`[DEBUG_SIGN_GET_TOKEN] Generated Sign: ${sign}`);
+    // >>>>> FIM DOS LOGS DE DEPURACÃO <<<<<
+
     // Adiciona partner_id, timestamp e sign na query string da URL
     const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`; 
 
@@ -98,6 +107,15 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
     // Assinatura para access_token/get DEVE incluir o JSON.stringify(requestBody)
     const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
+
+    // >>>>> LOGS DE DEPURACÃO PARA "Wrong sign" <<<<<
+    console.log(`[DEBUG_SIGN_REFRESH] Partner ID: ${partnerId}`);
+    console.log(`[DEBUG_SIGN_REFRESH] Path: ${path}`);
+    console.log(`[DEBUG_SIGN_REFRESH] Timestamp: ${timestamp}`);
+    console.log(`[DEBUG_SIGN_REFRESH] Request Body (Refresh, stringified): ${JSON.stringify(requestBody)}`);
+    console.log(`[DEBUG_SIGN_REFRESH] Base String COMPLETA (Refresh): ${baseString}`);
+    console.log(`[DEBUG_SIGN_REFRESH] Generated Sign (Refresh): ${sign}`);
+    // >>>>> FIM DOS LOGS DE DEPURACÃO <<<<<
 
     // Adiciona partner_id, timestamp e sign na query string da URL
     const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
