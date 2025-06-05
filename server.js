@@ -26,13 +26,13 @@ console.log('-_teste para ver se seguiu dentro do server--');
 app.use((req, res, next) => {
     res.status(404).send('Desculpe, a rota que você procura não foi encontrada.');
 });
-
+console.log('-_teste server passou 404--');
 // Middleware de tratamento de erros (opcional, mas recomendado para produção)
 app.use((err, req, res, next) => {
     console.error('❌ Erro inesperado no servidor:', err.stack);
     res.status(500).send('Algo deu errado no servidor!');
 });
-
+console.log('-_teste server passou 500 e vai iniciar servidor--');
 // Iniciar o servidor
 app.listen(port, () => {
     console.log(`🚀 Servidor rodando na porta ${port}`);
