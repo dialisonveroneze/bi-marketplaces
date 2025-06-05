@@ -71,7 +71,8 @@ function generateShopeeAuthLink() {
 
     // ESTA É A BASE STRING CORRETA para auth_partner, CONFORME O MANUAL!
     // A base string para auth_partner é partner_id + path + timestamp
-    const tmpBaseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timest}`; // Corrigido SHOPEE_PARTENER_ID_LIVE para SHOPEE_PARTNER_ID_LIVE
+    // CORREÇÃO: Typo em SHOPEE_PARTENER_ID_LIVE para SHOPEE_PARTNER_ID_LIVE
+    const tmpBaseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timest}`; 
 
     // A assinatura para auth_partner usa a APP KEY, não o PARTNER ID, na chave HMAC
     const sign = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE) // ✅ Confirmado: Usar SHOPEE_APP_KEY_LIVE como chave aqui
@@ -299,8 +300,10 @@ router.get('/auth/shopee/callback', async (req, res) => {
             );
 
         if (upsertError) {
-            console.error('❌ [API_ROUTE] Erro ao salvar tokens no Supabase:', upsertError.message);
-            return res.status(500).json({ error: 'Erro ao salvar tokens no Supabase', details: upsertError.message });
+            // CORREÇÃO: Tratamento mais robusto para a mensagem de erro do Supabase
+            const errorMessage = upsertError.message || 'Erro desconhecido no Supabase (objeto de erro vazio/nulo).';
+            console.error('❌ [API_ROUTE] Erro ao salvar tokens no Supabase:', errorMessage);
+            return res.status(500).json({ error: 'Erro ao salvar tokens no Supabase', details: errorMessage });
         } else {
             console.log(`✅ [API_ROUTE] Tokens salvos/atualizados no Supabase para ${idType}: ${idToSave}.`);
         }
