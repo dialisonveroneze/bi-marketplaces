@@ -93,7 +93,7 @@ async function getAccessTokenFromCode(code, shopId) {
 
 
     // URL para token: NÃO inclui o body na query string, ele vai no payload POST
-    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&redirect=${SHOPEE_REDIRECT_URL_LIVE}&timestamp=${timestamp}&sign=${sign}`;
 
     try {
         console.log(`[DEBUG_API_CALL] URL para token: ${url}`);
