@@ -8,151 +8,164 @@ const {
     SHOPEE_PARTNER_ID_LIVE,
     SHOPEE_API_KEY_LIVE,
     SHOPEE_AUTH_HOST_LIVE,
-    SHOPEE_API_HOST_LIVE
+    SHOPEE_API_HOST_LIVE,
+    SHOPEE_REDIRECT_URL_LIVE
 } = shopeeConfig;
 
 /**
- * Gera o link de autorização da Shopee para o lojista.
- * @returns {string} A URL de autorização.
+ * Gera o link de autorização da Shopee para o lojista iniciar o processo OAuth.
+ * @returns {string} A URL de autorização para a qual o usuário deve ser redirecionado.
  */
 function generateShopeeAuthLink() {
-    const timest = Math.floor(Date.now() / 1000);
+    const timest = Math.floor(Date.now() / 1000); // Timestamp em segundos
     const path = "/api/v2/shop/auth_partner";
-    const tmpBaseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timest}`;
+
+    // A string base para a assinatura é composta por: Partner ID + Path da API + Timestamp
+    const tmpBaseString = `<span class="math-inline">\{SHOPEE\_PARTNER\_ID\_LIVE\}</span>{path}${timest}`;
+
+    // Gera a assinatura usando HMAC-SHA256 com a API Key como segredo
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE)
                         .update(tmpBaseString)
-                        .digest('hex');
+                        .digest('hex'); // Formato hexadecimal
 
+    // Constrói a URL de autorização com todos os parâmetros necessários
     const url = (
-        `${SHOPEE_AUTH_HOST_LIVE}${path}` +
+        `<span class="math-inline">\{SHOPEE\_AUTH\_HOST\_LIVE\}</span>{path}` +
         `?partner_id=${SHOPEE_PARTNER_ID_LIVE}` +
-        `&redirect=${encodeURIComponent(shopeeConfig.SHOPEE_REDIRECT_URL_LIVE)}` +
+        `&redirect=${encodeURIComponent(SHOPEE_REDIRECT_URL_LIVE)}` + // URL de callback da sua aplicação
         `&timestamp=${timest}` +
         `&sign=${sign}`
     );
+    console.log(`[AuthService:generateAuthLink] Link de Autorização Gerado: ${url}`);
     return url;
 }
 
 /**
- * Obtém o access_token e refresh_token usando o code da Shopee.
+ * Obtém o access_token e refresh_token da Shopee usando o "code" fornecido
+ * após a autorização do lojista.
  * @param {string} code O código de autorização obtido da Shopee.
- * @param {string} [shopId] O ID da loja (opcional).
- * @param {string} [mainAccountId] O ID da conta principal (opcional).
+ * @param {string} [shopId] O ID da loja, se for uma autorização de loja individual.
+ * @param {string} [mainAccountId] O ID da conta principal, se for uma autorização de parceiro.
  * @returns {Promise<object>} Um objeto contendo access_token, refresh_token, expire_in e listas de IDs.
  */
 async function getAccessTokenFromCode(code, shopId, mainAccountId) {
     const path = "/api/v2/auth/token/get";
     const timestamp = Math.floor(Date.now() / 1000);
-    let requestBody = { code: code, partner_id: SHOPEE_PARTNER_ID_LIVE };
 
-    if (shopId) requestBody.shop_id = Number(shopId);
-    else if (mainAccountId) requestBody.main_account_id = Number(mainAccountId);
+    let requestBody = {
+        code: code,
+        partner_id: SHOPEE_PARTNER_ID_LIVE
+    };
 
-    const baseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timestamp}`;
+    if (shopId) {
+        requestBody.shop_id = Number(shopId);
+    } else if (mainAccountId) {
+        requestBody.main_account_id = Number(mainAccountId);
+    }
+
+    // A base string para a assinatura do token/get não inclui o body da requisição, apenas parâmetros de URL e headers.
+    // Para esta API específica, a assinatura é baseada em partner_id, path, timestamp.
+    const baseString = `<span class="math-inline">\{SHOPEE\_PARTNER\_ID\_LIVE\}</span>{path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${SHOPEE_PARTNER_ID_LIVE}&timestamp=${timestamp}&sign=${sign}`;
+    const url = `<span class="math-inline">\{SHOPEE\_API\_HOST\_LIVE\}</span>{path}?partner_id=<span class="math-inline">\{SHOPEE\_PARTNER\_ID\_LIVE\}&timestamp\=</span>{timestamp}&sign=${sign}`;
+
+    console.log(`\n--- [AuthService:getAccessTokenFromCode] INÍCIO DA REQUISIÇÃO ---`);
+    console.log(`  URL de Requisição: ${url}`);
+    console.log(`  Corpo da Requisição (JSON enviado): ${JSON.stringify(requestBody)}`);
+    console.log(`  Parâmetros para Assinatura (baseString): ${baseString}`);
+    console.log(`  Assinatura Gerada (sign): ${sign}`);
 
     try {
         const response = await axios.post(url, requestBody, {
             headers: { 'Content-Type': 'application/json' }
         });
-        if (response.data.error) throw new Error(response.data.message || 'Erro desconhecido ao obter access token.');
-        return response.data;
+
+        console.log(`--- [AuthService:getAccessTokenFromCode] RESPOSTA DA SHOPEE ---`);
+        console.log(`  Status HTTP: ${response.status}`);
+        console.log(`  Dados da Resposta (JSON recebido): ${JSON.stringify(response.data)}`);
+
+        if (response.data.error) {
+            throw new Error(response.data.message || `Erro desconhecido ao obter access token: ${JSON.stringify(response.data)}`);
+        }
+        return {
+            access_token: response.data.access_token,
+            refresh_token: response.data.refresh_token,
+            expire_in: response.data.expire_in, // Tempo de expiração em segundos
+            merchant_id_list: response.data.merchant_id_list, // Para contas de parceiro
+            shop_id_list: response.data.shop_id_list // Para contas de parceiro
+        };
     } catch (error) {
-        console.error('Erro em getAccessTokenFromCode:', error.response ? JSON.stringify(error.response.data) : error.message);
-        throw new Error(`Falha ao obter access token: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
+        const errorMessage = error.response ? JSON.stringify(error.response.data) : error.message;
+        console.error(`❌ [AuthService:getAccessTokenFromCode] Erro na requisição: ${errorMessage}`);
+        // Detalhes adicionais do erro HTTP se disponíveis
+        if (error.response) {
+            console.error(`❌ [AuthService:getAccessTokenFromCode] HTTP Status Erro: ${error.response.status}`);
+            console.error(`❌ [AuthService:getAccessTokenFromCode] Dados do Erro Recebido: ${JSON.stringify(error.response.data)}`);
+        }
+        throw new Error(`Falha ao obter access token da Shopee: ${errorMessage}`);
+    } finally {
+        console.log(`--- [AuthService:getAccessTokenFromCode] FIM DA REQUISIÇÃO ---\n`);
     }
 }
 
 /**
- * Atualiza o access_token usando o refresh_token.
+ * Atualiza o access_token usando o refresh_token, quando o access_token existente expira.
  * @param {string} refreshToken O refresh token atual.
- * @param {number} [shopId] O ID da loja.
- * @param {number} [mainAccountId] O ID da conta principal.
- * @returns {Promise<object>} Um objeto contendo access_token, refresh_token e expire_in.
+ * @param {number} [shopId] O ID da loja (se for uma conta de loja).
+ * @param {number} [mainAccountId] O ID da conta principal (se for uma conta principal).
+ * @returns {Promise<object>} Um objeto contendo o novo access_token, refresh_token e expire_in.
  */
 async function refreshShopeeAccessToken(refreshToken, shopId, mainAccountId) {
-    const path = "/api/v2/auth/access_token/get";
+    const path = "/api/v2/auth/access_token/get"; // Endpoint para refresh
     const timestamp = Math.floor(Date.now() / 1000);
-    let requestBody = { refresh_token: refreshToken, partner_id: SHOPEE_PARTNER_ID_LIVE };
 
-    if (shopId) requestBody.shop_id = Number(shopId);
-    else if (mainAccountId) requestBody.main_account_id = Number(mainAccountId);
+    let requestBody = {
+        refresh_token: refreshToken,
+        partner_id: SHOPEE_PARTNER_ID_LIVE
+    };
 
-    const baseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timestamp}`;
+    if (shopId) {
+        requestBody.shop_id = Number(shopId);
+    } else if (mainAccountId) {
+        requestBody.main_account_id = Number(mainAccountId);
+    }
+
+    const baseString = `<span class="math-inline">\{SHOPEE\_PARTNER\_ID\_LIVE\}</span>{path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${SHOPEE_PARTNER_ID_LIVE}&timestamp=${timestamp}&sign=${sign}`;
+    const url = `<span class="math-inline">\{SHOPEE\_API\_HOST\_LIVE\}</span>{path}?partner_id=<span class="math-inline">\{SHOPEE\_PARTNER\_ID\_LIVE\}&timestamp\=</span>{timestamp}&sign=${sign}`;
+
+    console.log(`\n--- [AuthService:refreshShopeeAccessToken] INÍCIO DA REQUISIÇÃO ---`);
+    console.log(`  URL de Requisição: ${url}`);
+    console.log(`  Corpo da Requisição (JSON enviado): ${JSON.stringify(requestBody)}`);
+    console.log(`  Parâmetros para Assinatura (baseString): ${baseString}`);
+    console.log(`  Assinatura Gerada (sign): ${sign}`);
 
     try {
         const response = await axios.post(url, requestBody, {
             headers: { 'Content-Type': 'application/json' }
         });
-        if (response.data.error) throw new Error(response.data.message || 'Erro desconhecido ao refrescar access token.');
-        return response.data;
-    } catch (error) {
-        console.error('Erro em refreshShopeeAccessToken:', error.response ? JSON.stringify(error.response.data) : error.message);
-        throw new Error(`Falha ao refrescar access token: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
-    }
-}
 
-/**
- * Busca e valida os tokens de acesso e refresh no Supabase.
- * Se o token estiver expirado, tenta refrescá-lo e o atualiza no Supabase.
- * @param {string} id O ID da loja ou conta principal.
- * @param {string} idType 'shop_id' ou 'main_account_id'.
- * @returns {Promise<object>} Um objeto contendo access_token, refresh_token e partner_id.
- */
-async function getValidatedShopeeTokens(id, idType) {
-    const { data: connectionData, error: fetchError } = await supabase
-        .from('api_connections_shopee')
-        .select('access_token, refresh_token, token_expires_at, partner_id, shop_id, main_account_id')
-        .eq(idType, Number(id))
-        .single();
+        console.log(`--- [AuthService:refreshShopeeAccessToken] RESPOSTA DA SHOPEE ---`);
+        console.log(`  Status HTTP: ${response.status}`);
+        console.log(`  Dados da Resposta (JSON recebido): ${JSON.stringify(response.data)}`);
 
-    if (fetchError || !connectionData) {
-        throw new Error('Tokens não encontrados ou erro ao buscar no Supabase.');
-    }
-
-    let accessToken = connectionData.access_token;
-    const refreshToken = connectionData.refresh_token;
-    const expiresAt = new Date(connectionData.token_expires_at);
-    const now = new Date();
-    const partnerId = connectionData.partner_id;
-
-    if (now >= expiresAt) {
-        console.log(`Access Token para ${idType}: ${id} expirado. Tentando refrescar...`);
-        try {
-            const newTokens = await refreshShopeeAccessToken(refreshToken, connectionData.shop_id, connectionData.main_account_id);
-            accessToken = newTokens.access_token;
-            const newExpiresAt = new Date(Date.now() + newTokens.expire_in * 1000);
-
-            const { error: updateError } = await supabase
-                .from('api_connections_shopee')
-                .upsert({
-                    [idType]: Number(id),
-                    access_token: accessToken,
-                    refresh_token: newTokens.refresh_token, // O refresh token também pode mudar
-                    token_expires_at: newExpiresAt.toISOString(),
-                    last_updated_at: new Date().toISOString()
-                }, { onConflict: idType });
-
-            if (updateError) {
-                console.error('Erro ao atualizar tokens no Supabase após refresh:', updateError.message);
-                throw new Error('Erro ao atualizar tokens no Supabase.');
-            }
-        } catch (refreshError) {
-            console.error('Falha ao refrescar Access Token:', refreshError.message);
-            throw new Error(`Falha ao refrescar Access Token. Detalhes: ${refreshError.message}`);
+        if (response.data.error) {
+            throw new Error(response.data.message || `Erro desconhecido ao refrescar access token: ${JSON.stringify(response.data)}`);
         }
-    }
-    return { access_token: accessToken, refresh_token: refreshToken, partner_id: partnerId };
-}
-
-module.exports = {
-    generateShopeeAuthLink,
-    getAccessTokenFromCode,
-    refreshShopeeAccessToken,
-    getValidatedShopeeTokens,
-};
+        return {
+            access_token: response.data.access_token,
+            refresh_token: response.data.refresh_token,
+            expire_in: response.data.expire_in,
+            merchant_id_list: response.data.merchant_id_list,
+            shop_id_list: response.data.shop_id_list
+        };
+    } catch (error) {
+        const errorMessage = error.response ? JSON.stringify(error.response.data) : error.message;
+        console.error(`❌ [AuthService:refreshShopeeAccessToken] Erro na requisição: ${errorMessage}`);
+        if (error.response) {
+            console.error(`❌ [AuthService:refreshShopeeAccessToken] HTTP Status Erro: ${error.response.status}`);
+            console.error(`❌ [AuthService:refreshShopeeAccessToken] Dados do Erro Recebido: ${JSON.stringify(error.response.data)}`);
+        }
+        throw new Error(`Fal
