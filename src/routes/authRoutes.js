@@ -78,7 +78,7 @@ async function getAccessTokenFromCode(code, shopId) {
     };
 
     // === CORREÇÃO CRÍTICA AQUI: REVERTIDO PARA NÃO INCLUIR JSON.stringify(requestBody) NA BASE STRING, CONFORME MANUAL ===
-    const baseString = `<span class="math-inline">\{partnerId\}</span>{path}${timestamp}`;
+    const baseString = `${partnerId}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE).update(baseString).digest('hex'); // Usando SHOPEE_APP_KEY_LIVE
 
     console.log(`[DEBUG_SIGN_GET_TOKEN] Partner ID: ${partnerId}`);
@@ -89,7 +89,7 @@ async function getAccessTokenFromCode(code, shopId) {
     console.log(`[DEBUG_SIGN_GET_TOKEN] Generated Sign: ${sign}`);
 
     // URL para token: NÃO inclui o body na query string, ele vai no payload POST
-    const url = `<span class="math-inline">\{SHOPEE\_API\_HOST\_LIVE\}</span>{path}?partner_id=<span class="math-inline">\{partnerId\}&timestamp\=</span>{timestamp}&sign=${sign}`;
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
 
     try {
         console.log(`[DEBUG_API_CALL] URL para token: ${url}`);
@@ -131,7 +131,7 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
     };
 
     // === CORREÇÃO CRÍTICA AQUI: REVERTIDO PARA NÃO INCLUIR JSON.stringify(requestBody) NA BASE STRING, CONFORME MANUAL ===
-    const baseString = `<span class="math-inline">\{partnerId\}</span>{path}${timestamp}`;
+    const baseString = `${partnerId}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE).update(baseString).digest('hex'); // Usando SHOPEE_APP_KEY_LIVE
 
     console.log(`[DEBUG_SIGN_REFRESH] Partner ID: ${partnerId}`);
@@ -142,7 +142,7 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
     console.log(`[DEBUG_SIGN_REFRESH] Generated Sign (Refresh): ${sign}`);
 
     // URL para refresh token: NÃO inclui o body na query string, ele vai no payload POST
-    const url = `<span class="math-inline">\{SHOPEE\_API\_HOST\_LIVE\}</span>{path}?partner_id=<span class="math-inline">\{partnerId\}&timestamp\=</span>{timestamp}&sign=${sign}`;
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
 
     try {
         console.log(`[DEBUG_API_CALL_REFRESH] URL para refresh token: ${url}`);
@@ -306,4 +306,145 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
 
         // Assinatura para get_order_list (GET) - Esta já estava correta, inclui access_token e shop_id na base string
-        const baseStringOrderList = `<span class="math-inline">\{partnerId\}</span>{ordersPath}${
+        const baseStringOrderList = `${partnerId}${ordersPath}${timestamp}${accessToken}${Number(shopId)}`;
+        const signatureOrderList = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE).update(baseStringOrderList).digest('hex'); // Usando SHOPEE_APP_KEY_LIVE
+
+        // Construindo a URL para a requisição GET
+        const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${signatureOrderList}&access_token=${accessToken}&shop_id=${shopId}&order_status=READY_TO_SHIP&page_size=10`;
+
+        console.log(`[SHOPEE_API] Chamando: ${ordersUrl}`);
+
+        const shopeeResponse = await axios.get(ordersUrl, {
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (shopeeResponse.data.error) {
+            throw new Error(shopeeResponse.data.message || 'Erro desconhecido ao buscar pedidos.');
+        }
+
+        const orders = shopeeResponse.data.response.order_list;
+        console.log(`[API_ROUTE] ${orders.length} pedidos encontrados para Shop ID: ${shopId}.`);
+
+        if (orders.length > 0) {
+            const ordersToInsert = orders.map(order => ({
+                order_sn: order.order_sn,
+                shop_id: Number(shopId),
+                original_data: order,
+                retrieved_at: new Date().toISOString()
+            }));
+
+            const { error: insertError } = await supabase
+                .from('orders_raw_shopee')
+                .upsert(ordersToInsert, { onConflict: 'order_sn' });
+
+            if (insertError) {
+                console.error('❌ [API_ROUTE] Erro ao salvar pedidos brutos no Supabase:', insertError.message);
+                return res.status(500).json({ error: 'Erro ao salvar pedidos brutos no Supabase', details: insertError.message });
+            } else {
+                console.log(`✅ [API_ROUTE] ${orders.length} pedidos brutos salvos/atualizados em orders_raw_shopee para Shop ID: ${shopId}.`);
+                res.status(200).json({ message: 'Pedidos brutos buscados e salvos com sucesso!', count: orders.length });
+            }
+        } else {
+            console.log(`[API_ROUTE] Nenhuns pedidos encontrados para Shop ID: ${shopId}.`);
+            res.status(200).json({ message: 'Nenhuns pedidos encontrados para o status e período especificados.', count: 0 });
+        }
+
+    } catch (error) {
+        console.error('❌ [API_ROUTE] Erro na busca de pedidos:', error.response ? JSON.stringify(error.response.data) : error.message);
+        res.status(500).json({ error: 'Falha ao buscar pedidos da Shopee.', details: error.response ? JSON.stringify(error.response.data) : error.message });
+    }
+});
+
+
+// Endpoint para normalizar pedidos brutos para a tabela orders_detail_normalized
+router.get('/auth/shopee/normalize', async (req, res) => {
+    console.log('[API_ROUTE] Endpoint /shopee/normalize acionado.');
+
+    const clientId = req.query.clientId || 1;
+
+    console.log(`[DEBUG_NORMALIZER] Iniciando normalização para client_id: ${clientId}`);
+
+    try {
+        const { data: rawOrders, error: fetchRawError } = await supabase
+            .from('orders_raw_shopee')
+            .select('*');
+
+        if (fetchRawError) {
+            console.error('❌ [NORMALIZER] Erro ao buscar pedidos brutos:', fetchRawError.message);
+            return res.status(500).json({ error: 'Erro ao buscar pedidos brutos para normalização', details: fetchRawError.message });
+        }
+
+        if (!rawOrders || rawOrders.length === 0) {
+            console.log('[NORMALIZER] Nenhuns pedidos brutos para normalizar.');
+            return res.status(200).json({ message: 'Nenhuns pedidos brutos para normalizar.', normalizedCount: 0 });
+        }
+
+        const normalizedOrders = [];
+        const updateRawStatus = [];
+
+        for (const rawOrder of rawOrders) {
+            const originalData = rawOrder.original_data;
+
+            if (!originalData) {
+                console.warn(`[NORMALIZER] Pedido SN: ${rawOrder.order_sn} não tem 'original_data'. Pulando.`);
+                continue;
+            }
+
+            try {
+                const totalAmount = parseFloat(originalData.total_amount) || 0;
+                const shippingFee = parseFloat(originalData.actual_shipping_fee) || 0;
+
+                const liquidValue = totalAmount - shippingFee;
+
+                const normalizedData = {
+                    client_id: clientId,
+                    platform_id: 1,
+                    order_sn: originalData.order_sn,
+                    order_status: originalData.order_status,
+                    total_amount: totalAmount,
+                    shipping_fee: shippingFee,
+                    liquid_value: liquidValue,
+                    currency: originalData.currency,
+                    created_at: new Date(originalData.create_time * 1000).toISOString(),
+                    updated_at: new Date(originalData.update_time * 1000).toISOString(),
+                    recipient_name: originalData.recipient_address ? originalData.recipient_address.name : null,
+                    recipient_phone: originalData.recipient_address ? originalData.recipient_address.phone : null,
+                    shipping_carrier: originalData.shipping_carrier,
+                    payment_method: originalData.payment_method,
+                    buyer_username: originalData.buyer_username,
+                    shop_id: originalData.shop_id,
+                };
+                normalizedOrders.push(normalizedData);
+
+                updateRawStatus.push(rawOrder.order_sn);
+
+            } catch (parseError) {
+                console.error(`❌ [NORMALIZER] Erro ao normalizar pedido SN: ${rawOrder.order_sn}. Erro: ${parseError.message}`);
+            }
+        }
+
+        if (normalizedOrders.length > 0) {
+            const { error: insertNormalizedError } = await supabase
+                .from('orders_detail_normalized')
+                .upsert(normalizedOrders, { onConflict: 'order_sn' });
+
+            if (insertNormalizedError) {
+                console.error('❌ [NORMALIZER] Erro ao salvar pedidos normalizados no Supabase:', insertNormalizedError.message);
+                return res.status(500).json({ error: 'Erro ao salvar pedidos normalizados', details: insertNormalizedError.message });
+            } else {
+                console.log(`✅ [NORMALIZER] ${normalizedOrders.length} pedidos normalizados e salvos em orders_detail_normalized.`);
+
+                res.status(200).json({ message: 'Pedidos normalizados com sucesso!', normalizedCount: normalizedOrders.length });
+            }
+        } else {
+            console.log('[NORMALIZER] Nenhuns pedidos foram processados para normalização.');
+            res.status(200).json({ message: 'Nenhuns pedidos foram processados para normalização.', normalizedCount: 0 });
+        }
+
+    } catch (error) {
+        console.error('❌ [NORMALIZER] Erro geral no processo de normalização:', error.message);
+        res.status(500).json({ error: 'Falha no processo de normalização de pedidos.', details: error.message });
+    }
+});
+
+module.exports = router;
