@@ -18,25 +18,27 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Variáveis da Shopee
 const SHOPEE_PARTNER_ID_LIVE = process.env.SHOPEE_PARTNER_ID_LIVE;
-const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE;
+// RENOMEADO E CRÍTICO: Esta é a chave de APP (APP Key) que deve ser usada para assinar as APIs de DADOS.
+// No seu .env e Render, configure como SHOPEE_APP_KEY_LIVE = 5a76716956544151425979695a7844726857745a786856467155736d4178776d
+const SHOPEE_APP_KEY_LIVE = process.env.SHOPEE_APP_KEY_LIVE; 
 const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE; 
 const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE;
 const SHOPEE_REDIRECT_URL_LIVE = process.env.SHOPEE_REDIRECT_URL_LIVE; 
 
 // Validação melhorada para garantir que as variáveis de ambiente da Shopee estão definidas
 console.log("--- Verificando Variáveis de Ambiente da Shopee ---");
-console.log(`SHOPEE_PARTNER_ID_LIVE (Esperado: seu ID de parceiro): ${SHOPEE_PARTNER_ID_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
-console.log(`SHOPEE_API_KEY_LIVE (Esperado: sua chave de API): OK`);
-console.log(`SHOPEE_API_HOST_LIVE (Esperado: https://partner.shopeemobile.com ou .com.br): ${SHOPEE_API_HOST_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
-console.log(`SHOPEE_REDIRECT_URL_LIVE (Esperado: Sua URL de callback): ${SHOPEE_REDIRECT_URL_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`); 
+console.log(`SHOPEE_PARTNER_ID_LIVE: ${SHOPEE_PARTNER_ID_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
+console.log(`SHOPEE_APP_KEY_LIVE (parcial): ${SHOPEE_APP_KEY_LIVE ? SHOPEE_APP_KEY_LIVE.substring(0, 5) + '...' + SHOPEE_APP_KEY_LIVE.slice(-5) : 'FALTANDO/INCORRETO'}`); // Exibe parcial
+console.log(`SHOPEE_API_HOST_LIVE: ${SHOPEE_API_HOST_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
+console.log(`SHOPEE_REDIRECT_URL_LIVE: ${SHOPEE_REDIRECT_URL_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`); 
 
 let shopeeConfigOk = true;
 if (!SHOPEE_PARTNER_ID_LIVE) {
     console.error("Erro: SHOPEE_PARTNER_ID_LIVE não está configurado.");
     shopeeConfigOk = false;
 }
-if (!SHOPEE_API_KEY_LIVE) {
-    console.error("Erro: SHOPEE_API_KEY_LIVE não está configurado.");
+if (!SHOPEE_APP_KEY_LIVE) { // Agora verifica SHOPEE_APP_KEY_LIVE
+    console.error("Erro: SHOPEE_APP_KEY_LIVE não está configurado.");
     shopeeConfigOk = false;
 }
 if (!SHOPEE_API_HOST_LIVE) {
@@ -71,49 +73,64 @@ async function getAccessTokenFromCode(code, shopId) {
     const requestBody = {
         code: code,
         shop_id: Number(shopId),
-        partner_id: partnerId // CORREÇÃO AQUI: Removemos String() - deve ser um número!
+        partner_id: partnerId
     };
 
-    const baseString = `${partnerId}${path}${timestamp}`; 
-    const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
+    // --- CORREÇÃO CRÍTICA AQUI: Incluir o JSON.stringify(requestBody) na baseString para POST ---
+    const requestBodyString = JSON.stringify(requestBody);
+    const baseString = `${partnerId}${path}${timestamp}${requestBodyString}`; 
+    const sign = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE).update(baseString).digest('hex'); // Usa SHOPEE_APP_KEY_LIVE
 
-    console.log(`[DEBUG_SIGN_GET_TOKEN] Partner ID: ${partnerId}`);
-    console.log(`[DEBUG_SIGN_GET_TOKEN] Path: ${path}`);
-    console.log(`[DEBUG_SIGN_GET_TOKEN] Timestamp: ${timestamp}`);
-    console.log(`[DEBUG_SIGN_GET_TOKEN] Request Body (stringified): ${JSON.stringify(requestBody)}`); 
-    console.log(`[DEBUG_SIGN_GET_TOKEN] Base String COMPLETA: ${baseString}`);
-    console.log(`[DEBUG_SIGN_GET_TOKEN] Generated Sign: ${sign}`);
+    console.log(`\n--- DEBUG getAccessTokenFromCode ---`);
+    console.log(`[DEBUG] Partner ID: ${partnerId}`);
+    console.log(`[DEBUG] Path: ${path}`);
+    console.log(`[DEBUG] Timestamp: ${timestamp}`);
+    console.log(`[DEBUG] Request Body Original: ${JSON.stringify(requestBody)}`); 
+    console.log(`[DEBUG] Request Body Stringified para assinatura: ${requestBodyString}`);
+    console.log(`[DEBUG] Base String COMPLETA para assinatura: "${baseString}"`); // Mostrar a base string completa
+    console.log(`[DEBUG] Generated Sign: ${sign}`);
 
     const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`; 
 
     try {
-        console.log(`[DEBUG_API_CALL] URL para token: ${url}`);
-        console.log(`[DEBUG_API_CALL] Request Body para token: ${JSON.stringify(requestBody)}`);
+        console.log(`[DEBUG] URL para token: ${url}`);
+        console.log(`[DEBUG] Request Body para token (enviado no POST): ${JSON.stringify(requestBody)}`);
         const response = await axios.post(url, requestBody, {
             headers: {
                 'Content-Type': 'application/json',
-                'Host': new URL(SHOPEE_API_HOST_LIVE).host,
+                // 'Host': new URL(SHOPEE_API_HOST_LIVE).host, // Removido: Geralmente não é necessário e pode causar problemas
             }
         });
 
         if (response.data.error) {
+            console.error(`[SHOPEE_API_ERROR] Resposta de erro da Shopee (token): ${JSON.stringify(response.data)}`);
             throw new Error(response.data.message || 'Erro desconhecido ao obter access token.');
         }
-        console.log('[SHOPEE_API] Resposta getAccessTokenFromCode:', response.data);
+        console.log('[SHOPEE_API_SUCCESS] Resposta getAccessTokenFromCode:', response.data);
+        console.log(`--- FIM DEBUG getAccessTokenFromCode ---\n`);
         return {
             access_token: response.data.access_token,
             refresh_token: response.data.refresh_token,
             expire_in: response.data.expire_in
         };
     } catch (error) {
-        console.error('Erro na requisição getAccessTokenFromCode:', error.response ? JSON.stringify(error.response.data) : error.message);
+        console.error('\n--- ERRO getAccessTokenFromCode ---');
+        console.error('Falha ao obter access token da Shopee.');
+        if (error.response) {
+            console.error('Status do erro HTTP:', error.response.status);
+            console.error('Dados do erro da API Shopee:', JSON.stringify(error.response.data, null, 2));
+        } else if (error.request) {
+            console.error('Nenhuma resposta recebida do servidor Shopee. Requisição:', error.request);
+        } else {
+            console.error('Erro ao configurar a requisição:', error.message);
+        }
+        console.error('--- FIM ERRO getAccessTokenFromCode ---\n');
         throw new Error(`Falha ao obter access token da Shopee: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
     }
 }
 
 /**
  * Atualiza o access_token usando o refresh_token.
- * ... (código refreshShopeeAccessToken permanece o mesmo) ...
  */
 async function refreshShopeeAccessToken(shopId, refreshToken) {
     const path = "/api/v2/auth/access_token/get"; 
@@ -123,42 +140,58 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
     const requestBody = {
         shop_id: Number(shopId),
         refresh_token: refreshToken,
-        partner_id: partnerId // CORREÇÃO AQUI: Removemos String() - deve ser um número!
+        partner_id: partnerId
     };
 
-    const baseString = `${partnerId}${path}${timestamp}`;
-    const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
+    // --- CORREÇÃO CRÍTICA AQUI: Incluir o JSON.stringify(requestBody) na baseString para POST ---
+    const requestBodyString = JSON.stringify(requestBody);
+    const baseString = `${partnerId}${path}${timestamp}${requestBodyString}`;
+    const sign = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE).update(baseString).digest('hex'); // Usa SHOPEE_APP_KEY_LIVE
 
-    console.log(`[DEBUG_SIGN_REFRESH] Partner ID: ${partnerId}`);
-    console.log(`[DEBUG_SIGN_REFRESH] Path: ${path}`);
-    console.log(`[DEBUG_SIGN_REFRESH] Timestamp: ${timestamp}`);
-    console.log(`[DEBUG_SIGN_REFRESH] Request Body (Refresh, stringified): ${JSON.stringify(requestBody)}`); 
-    console.log(`[DEBUG_SIGN_REFRESH] Base String COMPLETA (Refresh): ${baseString}`);
-    console.log(`[DEBUG_SIGN_REFRESH] Generated Sign (Refresh): ${sign}`);
+    console.log(`\n--- DEBUG refreshShopeeAccessToken ---`);
+    console.log(`[DEBUG] Partner ID: ${partnerId}`);
+    console.log(`[DEBUG] Path: ${path}`);
+    console.log(`[DEBUG] Timestamp: ${timestamp}`);
+    console.log(`[DEBUG] Request Body Original (Refresh): ${JSON.stringify(requestBody)}`); 
+    console.log(`[DEBUG] Request Body Stringified para assinatura (Refresh): ${requestBodyString}`);
+    console.log(`[DEBUG] Base String COMPLETA para assinatura (Refresh): "${baseString}"`);
+    console.log(`[DEBUG] Generated Sign (Refresh): ${sign}`);
 
     const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
 
     try {
-        console.log(`[DEBUG_API_CALL_REFRESH] URL para refresh token: ${url}`);
-        console.log(`[DEBUG_API_CALL_REFRESH] Request Body para refresh token: ${JSON.stringify(requestBody)}`);
+        console.log(`[DEBUG] URL para refresh token: ${url}`);
+        console.log(`[DEBUG] Request Body para refresh token (enviado no POST): ${JSON.stringify(requestBody)}`);
         const response = await axios.post(url, requestBody, {
             headers: {
                 'Content-Type': 'application/json',
-                'Host': new URL(SHOPEE_API_HOST_LIVE).host,
+                // 'Host': new URL(SHOPEE_API_HOST_LIVE).host, // Removido
             }
         });
 
         if (response.data.error) {
+            console.error(`[SHOPEE_API_ERROR] Resposta de erro da Shopee (refresh token): ${JSON.stringify(response.data)}`);
             throw new Error(response.data.message || 'Erro desconhecido ao refrescar access token.');
         }
-        console.log('[SHOPEE_API] Resposta refreshShopeeAccessToken:', response.data);
+        console.log('[SHOPEE_API_SUCCESS] Resposta refreshShopeeAccessToken:', response.data);
+        console.log(`--- FIM DEBUG refreshShopeeAccessToken ---\n`);
         return {
             access_token: response.data.access_token,
             refresh_token: response.data.refresh_token,
             expire_in: response.data.expire_in
         };
     } catch (error) {
-        console.error('Erro na requisição refreshShopeeAccessToken:', error.response ? JSON.stringify(error.response.data) : error.message);
+        console.error('\n--- ERRO refreshShopeeAccessToken ---');
+        console.error('Falha ao refrescar access token da Shopee.');
+        if (error.response) {
+            console.error('Status do erro HTTP:', error.response.status);
+            console.error('Dados do erro da API Shopee:', JSON.stringify(error.response.data, null, 2));
+        } else if (error.request) {
+            console.error('Nenhuma resposta recebida do servidor Shopee. Requisição:', error.request);
+        } else {
+            console.error('Erro ao configurar a requisição:', error.message);
+        }
+        console.error('--- FIM ERRO refreshShopeeAccessToken ---\n');
         throw new Error(`Falha ao refrescar access token da Shopee: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
     }
 }
@@ -179,14 +212,15 @@ router.get('/auth/shopee/callback', async (req, res) => {
         return res.status(400).send('Erro: Parâmetros de callback ausentes.');
     }
 
-    console.log(`[API_ROUTE] Endpoint /auth/shopee/callback acionado com code e shop_id para Shop ID: ${shop_id}. CODE: ${code}`); // Logando o code recebido
+    console.log(`\n--- ROTA /auth/shopee/callback ---`);
+    console.log(`[API_ROUTE] Endpoint /auth/shopee/callback acionado para Shop ID: ${shop_id}. CODE recebido: ${code}`);
 
     const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
-    const partnerKey = SHOPEE_API_KEY_LIVE;
+    const appKey = SHOPEE_APP_KEY_LIVE; // Usa SHOPEE_APP_KEY_LIVE
     const redirectUrl = SHOPEE_REDIRECT_URL_LIVE; 
     const apiHost = SHOPEE_API_HOST_LIVE;
 
-    if (!partnerId || !partnerKey || !redirectUrl || !apiHost) {
+    if (!partnerId || !appKey || !redirectUrl || !apiHost) {
         console.error("Erro: Variáveis de ambiente da Shopee não estão configuradas corretamente no contexto da rota de callback.");
         return res.status(500).send("Erro de configuração do servidor.");
     }
@@ -228,11 +262,12 @@ router.get('/auth/shopee/callback', async (req, res) => {
             refreshToken: tokens.refresh_token,
             expiresIn: tokens.expire_in
         });
+        console.log(`--- FIM ROTA /auth/shopee/callback ---\n`);
 
     } catch (error) {
-        console.error('Erro na requisição getAccessTokenFromCode:', error.response ? JSON.stringify(error.response.data) : error.message);
-        console.error('❌ [API_ROUTE] Erro ao obter access token da Shopee via rota de callback: Falha ao obter access token da Shopee:', error.response ? JSON.stringify(error.response.data) : error.message);
-        res.status(500).send(`Erro ao obter access token da Shopee: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
+        console.error('❌ [API_ROUTE] Erro ao obter access token da Shopee via rota de callback:', error.message);
+        res.status(500).send(`Erro ao obter access token da Shopee: ${error.message}`);
+        console.log(`--- FIM ROTA /auth/shopee/callback com Erro ---\n`);
     }
 });
 
@@ -245,6 +280,7 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         return res.status(400).json({ error: 'shopId é obrigatório na query.' });
     }
 
+    console.log(`\n--- ROTA /auth/shopee/fetch-orders ---`);
     console.log(`[API_ROUTE] Endpoint /shopee/fetch-orders acionado para Shop ID: ${shopId}.`);
 
     try {
@@ -297,9 +333,9 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         const timestamp = Math.floor(Date.now() / 1000);
         const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
 
-        // Assinatura para get_order_list (GET) - Esta já estava correta, não precisa mudar
+        // Assinatura para get_order_list (GET) - Esta já estava correta
         const baseStringOrderList = `${partnerId}${ordersPath}${timestamp}${accessToken}${Number(shopId)}`;
-        const signatureOrderList = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseStringOrderList).digest('hex');
+        const signatureOrderList = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE).update(baseStringOrderList).digest('hex'); // Usa SHOPEE_APP_KEY_LIVE
 
         // Construindo a URL para a requisição GET
         const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${signatureOrderList}&access_token=${accessToken}&shop_id=${shopId}&order_status=READY_TO_SHIP&page_size=10`;
@@ -340,16 +376,19 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
             console.log(`[API_ROUTE] Nenhuns pedidos encontrados para Shop ID: ${shopId}.`);
             res.status(200).json({ message: 'Nenhuns pedidos encontrados para o status e período especificados.', count: 0 });
         }
+        console.log(`--- FIM ROTA /auth/shopee/fetch-orders ---\n`);
 
     } catch (error) {
         console.error('❌ [API_ROUTE] Erro na busca de pedidos:', error.response ? JSON.stringify(error.response.data) : error.message);
         res.status(500).json({ error: 'Falha ao buscar pedidos da Shopee.', details: error.response ? JSON.stringify(error.response.data) : error.message });
+        console.log(`--- FIM ROTA /auth/shopee/fetch-orders com Erro ---\n`);
     }
 });
 
 
 // Endpoint para normalizar pedidos brutos para a tabela orders_detail_normalized
 router.get('/auth/shopee/normalize', async (req, res) => {
+    console.log('\n--- ROTA /auth/shopee/normalize ---');
     console.log('[API_ROUTE] Endpoint /shopee/normalize acionado.');
 
     const clientId = req.query.clientId || 1;
@@ -395,7 +434,8 @@ router.get('/auth/shopee/normalize', async (req, res) => {
                     order_status: originalData.order_status,
                     total_amount: totalAmount,
                     shipping_fee: shippingFee,
-                    liquid_value: liquidValue,
+                    // CORREÇÃO: Certifique-se de que liquid_value está sendo calculado corretamente
+                    liquid_value: liquidValue, 
                     currency: originalData.currency,
                     created_at: new Date(originalData.create_time * 1000).toISOString(),
                     updated_at: new Date(originalData.update_time * 1000).toISOString(),
@@ -432,10 +472,12 @@ router.get('/auth/shopee/normalize', async (req, res) => {
             console.log('[NORMALIZER] Nenhuns pedidos foram processados para normalização.');
             res.status(200).json({ message: 'Nenhuns pedidos foram processados para normalização.', normalizedCount: 0 });
         }
+        console.log(`--- FIM ROTA /auth/shopee/normalize ---\n`);
 
     } catch (error) {
         console.error('❌ [NORMALIZER] Erro geral no processo de normalização:', error.message);
         res.status(500).json({ error: 'Falha no processo de normalização de pedidos.', details: error.message });
+        console.log(`--- FIM ROTA /auth/shopee/normalize com Erro ---\n`);
     }
 });
 
