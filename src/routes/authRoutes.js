@@ -181,11 +181,11 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
 router.get('/', (req, res) => {
     res.status(200).send('Servidor BI Marketplace Integrator rodando! Use /auth/shopee/callback para autorização.');
 });
-
+ console.log("Saiu da funcao router.get '/' para verificar se o servidor esta rodando evai entrar no endpoint callback");
 // Endpoint de Callback da Shopee - Onde a Shopee redireciona APÓS a autorização
 router.get('/auth/shopee/callback', async (req, res) => {
     const { code, shop_id } = req.query;
-
+    console.log("Entrou na funcao router.get '/auth/shopee/callback' Endpoint de Callback da Shopee - Onde a Shopee redireciona APÓS a autorização ");
     if (!code || !shop_id) {
         console.error('[API_ROUTE] Callback da Shopee sem code ou shop_id.');
         return res.status(400).send('Erro: Parâmetros de callback ausentes.');
