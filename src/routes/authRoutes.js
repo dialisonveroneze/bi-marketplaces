@@ -3,28 +3,17 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const crypto = require('crypto');
-const { createClient } = require('@supabase/supabase-js');
+// >>>>>> ALTERAÇÃO AQUI: Importando o cliente Supabase do arquivo database/index.js <<<<<<
+const { supabase } = require('../database/index'); 
 
 console.log("entrou no authRoutes");
 
-// Configuração do Supabase
-const supabaseUrl = process.env.SUPABASE_URL;
-// ALTERAÇÃO PARA TESTE: USANDO ANON_KEY AQUI
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY; 
+// Removendo a inicialização do Supabase daqui, pois agora vem de database/index.js
+// As variáveis de ambiente do Supabase (SUPABASE_URL, SUPABASE_ANON_KEY) serão validadas e usadas em src/database/index.js
+// A validação crítica para SUPABASE_SERVICE_ROLE_KEY foi removida daqui, pois essa chave não é usada na conexão importada.
+// Se SUPABASE_URL ou SUPABASE_ANON_KEY estiverem faltando, o erro ocorrerá na inicialização de src/database/index.js ou no primeiro uso do cliente 'supabase'.
 
-// >>>>> VALIDAÇÃO CRÍTICA: Verifica se as variáveis do Supabase estão configuradas ANTES de inicializar o cliente <<<<<
-// ALTERAÇÃO PARA TESTE: VALIDANDO ANON_KEY AQUI
-if (!supabaseUrl || !supabaseAnonKey) { 
-    console.error("Erro CRÍTICO: Variáveis de ambiente do Supabase (SUPABASE_URL, SUPABASE_ANON_KEY) não estão configuradas no Render Environment.");
-    console.error("Por favor, verifique suas variáveis de ambiente no Render e certifique-se de que estão definidas corretamente.");
-    process.exit(1); 
-}
-
-// Inicializa o cliente Supabase APENAS SE as variáveis estiverem presentes
-// ALTERAÇÃO PARA TESTE: PASSANDO ANON_KEY AQUI
-const supabase = createClient(supabaseUrl, supabaseAnonKey); 
-
-// Variáveis da Shopee
+// Variáveis da Shopee (continuam sendo lidas diretamente aqui, pois são específicas desta rota)
 const SHOPEE_PARTNER_ID_LIVE = process.env.SHOPEE_PARTNER_ID_LIVE;
 const SHOPEE_APP_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE; 
 const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE;
