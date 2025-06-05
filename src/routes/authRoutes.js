@@ -24,6 +24,7 @@ const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE;
 const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE;
 const SHOPEE_REDIRECT_URL_LIVE = process.env.SHOPEE_REDIRECT_URL_LIVE;
 
+
 // Validação melhorada para garantir que as variáveis de ambiente da Shopee estão definidas
 console.log("--- Verificando Variáveis de Ambiente da Shopee ---");
 console.log(`SHOPEE_PARTNER_ID_LIVE (Esperado: seu ID de parceiro): ${SHOPEE_PARTNER_ID_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
@@ -88,6 +89,9 @@ async function getAccessTokenFromCode(code, shopId) {
     console.log(`[DEBUG_SIGN_GET_TOKEN] Base String COMPLETA (SEM Body): ${baseString}`); // Log atualizado
     console.log(`[DEBUG_SIGN_GET_TOKEN] Generated Sign: ${sign}`);
 
+
+
+
     // URL para token: NÃO inclui o body na query string, ele vai no payload POST
     const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
 
@@ -123,6 +127,7 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
     const path = "/api/v2/auth/access_token/get";
     const timestamp = Math.floor(Date.now() / 1000);
     const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
+	const redirectUrl = SHOPEE_REDIRECT_URL_LIVE;
 
     const requestBody = {
         shop_id: Number(shopId),
@@ -140,9 +145,10 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
     console.log(`[DEBUG_SIGN_REFRESH] Request Body (Refresh, stringified): ${JSON.stringify(requestBody)}`);
     console.log(`[DEBUG_SIGN_REFRESH] Base String COMPLETA (Refresh, SEM Body): ${baseString}`); // Log atualizado
     console.log(`[DEBUG_SIGN_REFRESH] Generated Sign (Refresh): ${sign}`);
+	console.log(`[DEBUG_SIGN_REFRESH] RedirectURL: ${redirectUrl}`);
 
     // URL para refresh token: NÃO inclui o body na query string, ele vai no payload POST
-    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&redirect=${redirectUrl}&timestamp=${timestamp}&sign=${sign}`;
 
     try {
         console.log(`[DEBUG_API_CALL_REFRESH] URL para refresh token: ${url}`);
