@@ -71,16 +71,17 @@ router.get('/shopee/callback', async (req, res) => {
         };
 
         // Adiciona merchant_id_list e shop_id_list se existirem na resposta da Shopee
-        if (tokens.merchant_id_list) {
+        // Estes campos são para contas de parceiro, e podem não estar presentes para lojas individuais
+        if (tokens.merchant_id_list && tokens.merchant_id_list.length > 0) {
             upsertData.merchant_id_list = tokens.merchant_id_list;
         }
-        if (tokens.shop_id_list) {
+        if (tokens.shop_id_list && tokens.shop_id_list.length > 0) {
             upsertData.shop_id_list = tokens.shop_id_list;
         }
 
         console.log(`  Dados para upsert no Supabase: ${JSON.stringify(upsertData)}`);
-        // NOVO LOG PARA A CHAVE DE CONFLITO
         console.log(`  Chave de Conflito para Upsert no Supabase: '${idType}'`);
+
 
         // Salva ou atualiza os tokens e informações no Supabase
         const { error: upsertError } = await supabase
@@ -88,8 +89,10 @@ router.get('/shopee/callback', async (req, res) => {
             .upsert(upsertData, { onConflict: idType }); // Define a chave de conflito para upsert
 
         if (upsertError) {
-            console.error('❌ [AuthRoutes:/shopee/callback] Erro ao salvar/atualizar tokens no Supabase:', upsertError.message || JSON.stringify(upsertError));
-            return res.status(500).json({ error: 'Erro ao salvar tokens no Supabase', details: upsertError.message || JSON.stringify(upsertError) });
+            // Loga o erro de forma mais robusta
+            const errorMessageSupabase = upsertError.message || JSON.stringify(upsertError);
+            console.error('❌ [AuthRoutes:/shopee/callback] Erro ao salvar/atualizar tokens no Supabase:', errorMessageSupabase);
+            return res.status(500).json({ error: 'Erro ao salvar tokens no Supabase', details: errorMessageSupabase });
         } else {
             console.log(`✅ [AuthRoutes:/shopee/callback] Tokens salvos/atualizados no Supabase para ${idType}: ${idToProcess}.`);
         }
