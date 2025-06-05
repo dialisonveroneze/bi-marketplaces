@@ -27,11 +27,11 @@ const SHOPEE_REDIRECT_URL_LIVE = process.env.SHOPEE_REDIRECT_URL_LIVE;
 
 // Validação melhorada para garantir que as variáveis de ambiente da Shopee estão definidas
 console.log("--- Verificando Variáveis de Ambiente da Shopee ---");
-console.log(`SHOPEE_PARTNER_ID_LIVE (Esperado: seu ID de parceiro): ${SHOPEE_PARTNER_ID_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
+console.log(`SHOPEE_PARTNER_ID_LIVE (Esperado: seu ID de parceiro):2011476 ${SHOPEE_PARTNER_ID_LIVE ? 'OK' : 'FALTANDO/INCORRETO'} ${SHOPEE_PARTNER_ID_LIVE}`);
 // Log atualizado para SHOPEE_APP_KEY_LIVE (ou o nome que você está usando no .env/Render)
-console.log(`SHOPEE_APP_KEY_LIVE (Esperado: sua App Key): ${SHOPEE_APP_KEY_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
+console.log(`SHOPEE_APP_KEY_LIVE (Esperado: sua App Key):484f536f565a61686a424565496b79755a44776262705a4568656a7675746b44 ${SHOPEE_APP_KEY_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}${SHOPEE_APP_KEY_LIVE}`);
 console.log(`SHOPEE_API_HOST_LIVE (Esperado: https://openplatform.shopee.com.br): ${SHOPEE_API_HOST_LIVE ? 'OK' : 'FALTANDO/INCORRETO'} ${SHOPEE_API_HOST_LIVE}`);
-console.log(`SHOPEE_REDIRECT_URL_LIVE (Esperado: Sua URL de callback): ${SHOPEE_REDIRECT_URL_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
+console.log(`SHOPEE_REDIRECT_URL_LIVE (Esperado:https://bi-marketplaces.onrender.com Sua URL de callback): ${SHOPEE_REDIRECT_URL_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}${SHOPEE_REDIRECT_URL_LIVE}`);
 
 let shopeeConfigOk = true;
 if (!SHOPEE_PARTNER_ID_LIVE) {
@@ -71,7 +71,7 @@ async function getAccessTokenFromCode(code, shopId) {
     const path = "/api/v2/auth/token/get";
     const timestamp = Math.floor(Date.now() / 1000);
     const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
-
+  console.log(`ta fazendo um tal de requestBody e recebendo o code ${code} e shopid &{shopId}`);
     const requestBody = {
         code: code,
         shop_id: Number(shopId),
