@@ -371,38 +371,35 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         console.log(`[DEBUG_SIGN_ORDER_LIST] Shop ID used: ${Number(shopId)}`);
         console.log(`[DEBUG_SIGN_ORDER_LIST] Generated Sign (Order List): "${signatureOrderList}"`);
 
-        // Constrói os parâmetros da query que iriam no final da URL, corrigindo a sintaxe.
-        // ATENÇÃO: Os parâmetros DENTRO deste URLSearchParams serão ordenados ALFABETICAMENTE
-        // pelo URLSearchParams. Mas eles virão DEPOIS dos parâmetros fixos na `ordersUrl`.
-        const finalQueryParams = new URLSearchParams({
-            timestamp: timestamp,
-            shop_id: Number(shopId),
-            // Corrigindo a sintaxe para pares chave-valor válidos
-            order_status: 'READY_TO_SHIP', // Era '&order_status=READY_TO_SHIP,'
-            partner_id: partnerId,
-            access_token: accessToken,
-            // Corrigindo a sintaxe para múltiplos pares chave-valor
-            cursor: "",
-            time_range_field: 'create_time',
-            time_from: timeFrom, // Assumindo que 'timeFrom' é uma variável já definida
-            time_to: timeTo,     // Assumindo que 'timeTo' é uma variável já definida
-            sign: signatureOrderList,
-            // Mantendo o spread de ...signatureExtraParams.
-            // Certifique-se de que os campos acima (order_status, cursor, etc.)
-            // não estejam duplicados dentro de signatureExtraParams, caso contrário,
-            // URLSearchParams pode se comportar de forma inesperada com duplicatas.
-            // O ideal é que eles venham apenas de um lugar.
-            ...signatureExtraParams
-        }).toString();
+    // Constrói os parâmetros da query que iriam no final da URL, corrigindo a sintaxe.
+// ATENÇÃO: Os parâmetros DENTRO deste URLSearchParams serão ordenados ALFABETICAMENTE
+// pelo URLSearchParams.
+const finalQueryParams = new URLSearchParams({
+    // Certifique-se de que page_size e response_optional_fields estejam aqui
+    // ou em ...signatureExtraParams para serem incluídos na URL.
+    page_size: 20, // <-- Adicionado aqui, se não estiver em signatureExtraParams
+    response_optional_fields: 'order_status', // <-- Adicionado aqui, se não estiver em signatureExtraParams
+    timestamp: timestamp,
+    shop_id: Number(shopId),
+    order_status: 'READY_TO_SHIP',
+    partner_id: partnerId,
+    access_token: accessToken,
+    cursor: '""',
+    time_range_field: 'create_time',
+    time_from: timeFrom,
+    time_to: timeTo,
+    sign: signatureOrderList,
+    // Se signatureExtraParams já inclui page_size e response_optional_fields,
+    // você pode remover as duas linhas acima (`page_size` e `response_optional_fields`)
+    // e deixar que o spread adicione-os.
+    ...signatureExtraParams
+}).toString();
 
-        // Constrói a URL final da API, montando-a na sequência EXATA que você deseja.
-        // A parte fixa é adicionada primeiro, e depois o resultado de finalQueryParams.
-        const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?` +
-                          `page_size=20` +
-                          `&response_optional_fields=order_status` +
-                          `&${finalQueryParams}`; // Adiciona o resultado do URLSearchParams aqui
+// Constrói a URL final da API, passando apenas o finalQueryParams.
+// Isso evita duplicação e é a forma canônica de construir a URL de query.
+const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?${finalQueryParams}`;
 
-        console.log(`[SHOPEE_API] Chamando: ${ordersUrl}`);
+console.log(`[SHOPEE_API] Chamando: ${ordersUrl}`);
 
         // Faz a requisição HTTP real para a API da Shopee
         const shopeeResponse = await axios.get(ordersUrl, {
