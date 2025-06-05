@@ -71,12 +71,12 @@ function generateShopeeAuthLink() {
 
     // ESTA É A BASE STRING CORRETA para auth_partner, CONFORME O MANUAL!
     // A base string para auth_partner é partner_id + path + timestamp
-    const tmpBaseString = `${SHOPEE_PARTENER_ID_LIVE}${path}${timest}`;
+    const tmpBaseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timest}`; // Corrigido SHOPEE_PARTENER_ID_LIVE para SHOPEE_PARTNER_ID_LIVE
 
     // A assinatura para auth_partner usa a APP KEY, não o PARTNER ID, na chave HMAC
     const sign = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE) // ✅ Confirmado: Usar SHOPEE_APP_KEY_LIVE como chave aqui
-                         .update(tmpBaseString)
-                         .digest('hex');
+                            .update(tmpBaseString)
+                            .digest('hex');
 
     const url = (
         `${SHOPEE_AUTH_HOST_LIVE}${path}` +
@@ -107,6 +107,13 @@ async function getAccessTokenFromCode(code, shopId, mainAccountId) {
     const timestamp = Math.floor(Date.now() / 1000);
     const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
 
+    // >>> ADICIONADO: DEBUG LOGS PARA PARTNER_ID <<<
+    console.log(`[DEBUG_PARTNER_ID] Valor de SHOPEE_PARTNER_ID_LIVE: '${process.env.SHOPEE_PARTNER_ID_LIVE}'`);
+    console.log(`[DEBUG_PARTNER_ID] Tipo de SHOPEE_PARTNER_ID_LIVE: ${typeof process.env.SHOPEE_PARTNER_ID_LIVE}`);
+    console.log(`[DEBUG_PARTNER_ID] Valor de partnerId (depois de Number()): ${partnerId}`);
+    console.log(`[DEBUG_PARTNER_ID] Tipo de partnerId (depois de Number()): ${typeof partnerId}`);
+    // <<< FIM DOS DEBUG LOGS >>>
+
     let requestBody = {
         code: code,
         partner_id: partnerId
@@ -135,7 +142,7 @@ async function getAccessTokenFromCode(code, shopId, mainAccountId) {
 
     // === CORREÇÃO AGORA CORRETA AQUI ===
     // A URL para token NÃO inclui o redirect na query string, ele vai no payload POST
-    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}×tamp=${timestamp}&sign=${sign}`;
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
 
     try {
         console.log(`[DEBUG_API_CALL] URL para token: ${url}`);
@@ -175,6 +182,13 @@ async function refreshShopeeAccessToken(refreshToken, shopId, mainAccountId) {
     const path = "/api/v2/auth/access_token/get"; // A mesma API GetAccessToken, mas com refresh_token
     const timestamp = Math.floor(Date.now() / 1000);
     const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
+
+    // >>> ADICIONADO: DEBUG LOGS PARA PARTNER_ID <<<
+    console.log(`[DEBUG_PARTNER_ID] Valor de SHOPEE_PARTNER_ID_LIVE: '${process.env.SHOPEE_PARTNER_ID_LIVE}'`);
+    console.log(`[DEBUG_PARTNER_ID] Tipo de SHOPEE_PARTNER_ID_LIVE: ${typeof process.env.SHOPEE_PARTNER_ID_LIVE}`);
+    console.log(`[DEBUG_PARTNER_ID] Valor de partnerId (depois de Number()): ${partnerId}`);
+    console.log(`[DEBUG_PARTNER_ID] Tipo de partnerId (depois de Number()): ${typeof partnerId}`);
+    // <<< FIM DOS DEBUG LOGS >>>
 
     let requestBody = {
         refresh_token: refreshToken,
