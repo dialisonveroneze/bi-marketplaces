@@ -9,16 +9,18 @@ console.log("entrou no authRoutes");
 
 // Configuração do Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
-// IMPORTANTE: Para operações de backend (como salvar no banco de dados), usamos a service_role_key.
-// Ela tem permissão total e ignora RLS. Certifique-se de que esta variável está configurada corretamente no Render.
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY; 
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-// Validação básica para garantir que as variáveis de ambiente do Supabase estão definidas
+// >>>>> VALIDAÇÃO CRÍTICA: Verifica se as variáveis do Supabase estão configuradas ANTES de inicializar o cliente <<<<<
 if (!supabaseUrl || !supabaseServiceRoleKey) {
-    console.error("Erro: Variáveis de ambiente do Supabase (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) não estão configuradas no .env ou no Render Environment.");
-    // Em um ambiente de produção, você pode querer lançar um erro ou encerrar o processo aqui
+    console.error("Erro CRÍTICO: Variáveis de ambiente do Supabase (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) não estão configuradas no Render Environment.");
+    console.error("Por favor, verifique suas variáveis de ambiente no Render e certifique-se de que estão definidas corretamente.");
+    // É essencial que isso impeça a aplicação de iniciar se as chaves críticas estiverem faltando.
+    process.exit(1); 
 }
+
+// Inicializa o cliente Supabase APENAS SE as variáveis estiverem presentes
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 // Variáveis da Shopee
 const SHOPEE_PARTNER_ID_LIVE = process.env.SHOPEE_PARTNER_ID_LIVE;
