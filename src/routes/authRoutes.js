@@ -17,11 +17,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Variáveis da Shopee
-const SHOPEE_PARTNER_ID_LIVE = process.env.SHOPEE_PARTNER_ID_LIVE;
-const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE; 
-const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE; 
-const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE;
-const SHOPEE_REDIRECT_URL_LIVE = process.env.SHOPEE_REDIRECT_URL_LIVE; 
+// Adicionado .trim() para remover espaços em branco indesejados
+const SHOPEE_PARTNER_ID_LIVE = process.env.SHOPEE_PARTNER_ID_LIVE ? process.env.SHOPEE_PARTNER_ID_LIVE.trim() : undefined;
+const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE ? process.env.SHOPEE_API_KEY_LIVE.trim() : undefined; 
+const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE ? process.env.SHOPEE_AUTH_HOST_LIVE.trim() : undefined; 
+const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE ? process.env.SHOPEE_API_HOST_LIVE.trim() : undefined;
+const SHOPEE_REDIRECT_URL_LIVE = process.env.SHOPEE_REDIRECT_URL_LIVE ? process.env.SHOPEE_REDIRECT_URL_LIVE.trim() : undefined; 
 
 // Validação melhorada para garantir que as variáveis de ambiente da Shopee estão definidas
 console.log("--- Verificando Variáveis de Ambiente da Shopee ---");
@@ -66,7 +67,7 @@ function generateShopeeAuthLink() {
     const timest = Math.floor(Date.now() / 1000);
     const path = "/api/v2/shop/auth_partner";
 
-    const tmpBaseString = `${SHOPEE_PARTENER_ID_LIVE}${path}${timest}`; 
+    const tmpBaseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timest}`; 
 
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE)
                             .update(tmpBaseString)
@@ -353,18 +354,33 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
             time_range_field: 'create_time', // ou 'update_time', dependendo do que você quer filtrar
         };
 
+        console.log(`[DEBUG_SIGN_ORDER_LIST] signatureExtraParams:`, signatureExtraParams);
+
         // Gerar a parte dos parâmetros adicionais para a base string da assinatura
         // Convertendo todos os valores para string e ordenando as chaves alfabeticamente
         const sortedParamValuesForSignature = Object.keys(signatureExtraParams)
             .sort()
-            .map(key => String(signatureExtraParams[key])) // Garante que os valores são strings
+            .map(key => {
+                const value = signatureExtraParams[key];
+                console.log(`[DEBUG_SIGN_ORDER_LIST] Sorting param: ${key}, value: ${value}, type: ${typeof value}`);
+                return String(value); // Garante que os valores são strings
+            })
             .join('');
+
+        console.log(`[DEBUG_SIGN_ORDER_LIST] sortedParamValuesForSignature: "${sortedParamValuesForSignature}"`);
 
         // Base string para cálculo da assinatura (conforme documentação Shopee para GET)
         const baseStringOrderList = `${partnerId}${ordersPath}${timestamp}${accessToken}${Number(shopId)}${sortedParamValuesForSignature}`;
         
+        console.log(`[DEBUG_SIGN_ORDER_LIST] Base String COMPLETA (Order List): "${baseStringOrderList}"`);
+        console.log(`[DEBUG_SIGN_ORDER_LIST] API Key being used (first 5 chars): "${SHOPEE_API_KEY_LIVE.substring(0, 5)}..."`); // Mascarando para segurança
+        console.log(`[DEBUG_SIGN_ORDER_LIST] Access Token (first 5 chars): "${accessToken.substring(0, 5)}..."`); // Mascarando para segurança
+        console.log(`[DEBUG_SIGN_ORDER_LIST] Shop ID used: ${Number(shopId)}`);
+
         // Calcular a assinatura
         const signatureOrderList = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseStringOrderList).digest('hex');
+
+        console.log(`[DEBUG_SIGN_ORDER_LIST] Generated Sign (Order List): "${signatureOrderList}"`);
 
         // Construir a URL final com todos os parâmetros, incluindo a assinatura
         const finalQueryParams = new URLSearchParams({
