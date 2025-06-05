@@ -1,4 +1,3 @@
-// src/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
@@ -13,23 +12,23 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // Validação básica para garantir que as variáveis de ambiente do Supabase estão definidas
 if (!supabaseUrl || !supabaseAnonKey) {
     console.error("Erro: Variáveis de ambiente do Supabase (SUPABASE_URL, SUPABASE_ANON_KEY) não estão configuradas no .env ou no Render Environment.");
-    process.exit(1); // Adicionado process.exit(1) para parar a aplicação se as variáveis cruciais estiverem faltando
+    process.exit(1);
 }
 
 // Variáveis da Shopee
 // Adicionado .trim() para remover espaços em branco indesejados
 const SHOPEE_PARTNER_ID_LIVE = process.env.SHOPEE_PARTNER_ID_LIVE ? process.env.SHOPEE_PARTNER_ID_LIVE.trim() : undefined;
-const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE ? process.env.SHOPEE_API_KEY_LIVE.trim() : undefined; 
-const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE ? process.env.SHOPEE_AUTH_HOST_LIVE.trim() : undefined; 
+const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE ? process.env.SHOPEE_API_KEY_LIVE.trim() : undefined;
+const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE ? process.env.SHOPEE_AUTH_HOST_LIVE.trim() : undefined;
 const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE ? process.env.SHOPEE_API_HOST_LIVE.trim() : undefined;
-const SHOPEE_REDIRECT_URL_LIVE = process.env.SHOPEE_REDIRECT_URL_LIVE ? process.env.SHOPEE_REDIRECT_URL_LIVE.trim() : undefined; 
+const SHOPEE_REDIRECT_URL_LIVE = process.env.SHOPEE_REDIRECT_URL_LIVE ? process.env.SHOPEE_REDIRECT_URL_LIVE.trim() : undefined;
 
 // Validação melhorada para garantir que as variáveis de ambiente da Shopee estão definidas
 console.log("--- Verificando Variáveis de Ambiente da Shopee ---");
 console.log(`SHOPEE_PARTNER_ID_LIVE (Esperado: seu ID de parceiro): ${SHOPEE_PARTNER_ID_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
 console.log(`SHOPEE_API_KEY_LIVE (Esperado: sua chave de API): OK`);
 console.log(`SHOPEE_API_HOST_LIVE (Esperado: https://partner.shopeemobile.com ou .com.br): ${SHOPEE_API_HOST_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
-console.log(`SHOPEE_REDIRECT_URL_LIVE (Esperado: Sua URL de callback): ${SHOPEE_REDIRECT_URL_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`); 
+console.log(`SHOPEE_REDIRECT_URL_LIVE (Esperado: Sua URL de callback): ${SHOPEE_REDIRECT_URL_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
 
 let shopeeConfigOk = true;
 if (!SHOPEE_PARTNER_ID_LIVE) {
@@ -51,7 +50,6 @@ if (!SHOPEE_REDIRECT_URL_LIVE) {
 
 if (!shopeeConfigOk) {
     console.error("--- ERRO: Variáveis de ambiente da Shopee não estão configuradas corretamente. ---");
-    // Em um ambiente de produção, você pode querer lançar um erro ou encerrar o processo aqui
 } else {
     console.log("--- Todas as variáveis de ambiente da Shopee estão configuradas corretamente. ---");
 }
@@ -61,17 +59,17 @@ function generateShopeeAuthLink() {
     if (!SHOPEE_PARTNER_ID_LIVE || !SHOPEE_API_KEY_LIVE || !SHOPEE_REDIRECT_URL_LIVE || !SHOPEE_AUTH_HOST_LIVE) {
         console.error("Erro: Variáveis de ambiente SHOPEE_PARTNER_ID_LIVE, SHOPEE_API_KEY_LIVE, SHOPEE_REDIRECT_URL_LIVE ou SHOPEE_AUTH_HOST_LIVE não estão configuradas para gerar o link de autenticação.");
         console.error("Certifique-se de que o arquivo .env existe e as variáveis estão definidas.");
-        process.exit(1); 
+        process.exit(1);
     }
 
     const timest = Math.floor(Date.now() / 1000);
     const path = "/api/v2/shop/auth_partner";
 
-    const tmpBaseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timest}`; 
+    const tmpBaseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timest}`;
 
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE)
-                            .update(tmpBaseString)
-                            .digest('hex');
+        .update(tmpBaseString)
+        .digest('hex');
 
     const url = (
         `${SHOPEE_AUTH_HOST_LIVE}${path}` +
@@ -84,9 +82,9 @@ function generateShopeeAuthLink() {
 }
 
 async function getAccessTokenFromCode(code, shopId) {
-    const path = "/api/v2/auth/token/get"; 
+    const path = "/api/v2/auth/token/get";
     const timestamp = Math.floor(Date.now() / 1000);
-    const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); 
+    const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
 
     const requestBody = {
         code: code,
@@ -94,17 +92,17 @@ async function getAccessTokenFromCode(code, shopId) {
         partner_id: partnerId
     };
 
-    const baseString = `${partnerId}${path}${timestamp}`; 
+    const baseString = `${partnerId}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
     console.log(`[DEBUG_SIGN_GET_TOKEN] Partner ID: ${partnerId}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Path: ${path}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Timestamp: ${timestamp}`);
-    console.log(`[DEBUG_SIGN_GET_TOKEN] Request Body (stringified): ${JSON.stringify(requestBody)}`); 
+    console.log(`[DEBUG_SIGN_GET_TOKEN] Request Body (stringified): ${JSON.stringify(requestBody)}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Base String COMPLETA: ${baseString}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Generated Sign: ${sign}`);
 
-    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`; 
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
 
     try {
         console.log(`[DEBUG_API_CALL] URL para token: ${url}`);
@@ -132,9 +130,9 @@ async function getAccessTokenFromCode(code, shopId) {
 }
 
 async function refreshShopeeAccessToken(shopId, refreshToken) {
-    const path = "/api/v2/auth/access_token/get"; 
+    const path = "/api/v2/auth/access_token/get";
     const timestamp = Math.floor(Date.now() / 1000);
-    const partnerId = Number(SHOPEE_PARTNER_ID_LIVE); 
+    const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
 
     const requestBody = {
         shop_id: Number(shopId),
@@ -148,7 +146,7 @@ async function refreshShopeeAccessToken(shopId, refreshToken) {
     console.log(`[DEBUG_SIGN_REFRESH] Partner ID: ${partnerId}`);
     console.log(`[DEBUG_SIGN_REFRESH] Path: ${path}`);
     console.log(`[DEBUG_SIGN_REFRESH] Timestamp: ${timestamp}`);
-    console.log(`[DEBUG_SIGN_REFRESH] Request Body (Refresh, stringified): ${JSON.stringify(requestBody)}`); 
+    console.log(`[DEBUG_SIGN_REFRESH] Request Body (Refresh, stringified): ${JSON.stringify(requestBody)}`);
     console.log(`[DEBUG_SIGN_REFRESH] Base String COMPLETA (Refresh): ${baseString}`);
     console.log(`[DEBUG_SIGN_REFRESH] Generated Sign (Refresh): ${sign}`);
 
@@ -199,7 +197,7 @@ router.get('/auth/shopee/callback', async (req, res) => {
 
     const partnerId = Number(SHOPEE_PARTNER_ID_LIVE);
     const partnerKey = SHOPEE_API_KEY_LIVE;
-    const redirectUrl = SHOPEE_REDIRECT_URL_LIVE; 
+    const redirectUrl = SHOPEE_REDIRECT_URL_LIVE;
     const apiHost = SHOPEE_API_HOST_LIVE;
 
     if (!partnerId || !partnerKey || !redirectUrl || !apiHost) {
@@ -208,7 +206,7 @@ router.get('/auth/shopee/callback', async (req, res) => {
     }
 
     // Usaremos um client_id fixo por enquanto. Em um sistema real, isso viria da sessão do usuário logado.
-    const CLIENT_ID_FIXO = 1; // Ou outro ID que você queira associar
+    const CLIENT_ID_FIXO = 1;
     const CONNECTION_NAME = 'shopee';
 
     try {
@@ -221,27 +219,27 @@ router.get('/auth/shopee/callback', async (req, res) => {
         }
 
         const { data, error: upsertError } = await supabase
-            .from('client_connections') // <<<<< CORRIGIDO AQUI: Tabela client_connections >>>>>
+            .from('client_connections')
             .upsert(
                 {
-                    client_id: CLIENT_ID_FIXO, // <<<<< Adicionado client_id >>>>>
-                    connection_name: CONNECTION_NAME, // <<<<< Adicionado connection_name >>>>>
+                    client_id: CLIENT_ID_FIXO,
+                    connection_name: CONNECTION_NAME,
                     access_token: tokens.access_token,
                     refresh_token: tokens.refresh_token,
-                    access_token_expires_at: new Date(Date.now() + tokens.expire_in * 1000).toISOString(), // <<<<< Nome da coluna corrigido >>>>>
-                    updated_at: new Date().toISOString(), // <<<<< Usando updated_at >>>>>
-                    additional_data: { // <<<<< shop_id e partner_id movidos para additional_data >>>>>
+                    access_token_expires_at: new Date(Date.now() + tokens.expire_in * 1000).toISOString(),
+                    updated_at: new Date().toISOString(),
+                    additional_data: {
                         shop_id: Number(shop_id),
                         partner_id: Number(partnerId)
                     }
                 },
-                { onConflict: ['client_id', 'connection_name'] } // <<<<< onConflict corrigido >>>>>
+                { onConflict: ['client_id', 'connection_name'] }
             );
 
         if (upsertError) {
             const errorMessage = upsertError.message || 'Erro desconhecido no Supabase (objeto de erro vazio/nulo).';
             console.error('❌ [API_ROUTE] Erro ao salvar tokens no Supabase:', errorMessage);
-            console.error('❌ [API_ROUTE] Detalhes completos do erro do Supabase:', upsertError); 
+            console.error('❌ [API_ROUTE] Detalhes completos do erro do Supabase:', upsertError);
             return res.status(500).json({ error: 'Erro ao salvar tokens no Supabase', details: errorMessage });
         } else {
             console.log(`✅ [API_ROUTE] Tokens salvos/atualizados no Supabase para Shop ID: ${shop_id} (client_id: ${CLIENT_ID_FIXO}, connection_name: ${CONNECTION_NAME}).`);
@@ -272,15 +270,13 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
 
     console.log(`[API_ROUTE] Endpoint /shopee/fetch-orders acionado para Shop ID: ${shopId}.`);
 
-    // Usaremos o mesmo client_id fixo para buscar a conexão
-    const CLIENT_ID_FIXO = 1; 
+    const CLIENT_ID_FIXO = 1;
     const CONNECTION_NAME = 'shopee';
 
     try {
-        // Buscando da tabela client_connections com client_id e connection_name
         const { data: connectionData, error: fetchError } = await supabase
-            .from('client_connections') 
-            .select('access_token, refresh_token, access_token_expires_at, additional_data') 
+            .from('client_connections')
+            .select('access_token, refresh_token, access_token_expires_at, additional_data')
             .eq('client_id', CLIENT_ID_FIXO)
             .eq('connection_name', CONNECTION_NAME)
             .single();
@@ -289,28 +285,25 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
             console.error('❌ [API_ROUTE] Erro ao buscar tokens no Supabase:', fetchError ? fetchError.message : 'Tokens não encontrados.');
             return res.status(404).json({ error: 'Tokens não encontrados para o shopId fornecido. Por favor, autorize a loja primeiro.' });
         }
-        
-        // Verificação adicional para garantir que o shopId buscado corresponde ao da additional_data, se relevante
+
         if (connectionData.additional_data && connectionData.additional_data.shop_id !== Number(shopId)) {
-             console.warn(`[API_ROUTE] ShopId na query (${shopId}) não corresponde ao shop_id salvo em additional_data (${connectionData.additional_data.shop_id}) para esta conexão.`);
-             // Você pode decidir como lidar com isso: erro, ou continuar usando os tokens encontrados
+            console.warn(`[API_ROUTE] ShopId na query (${shopId}) não corresponde ao shop_id salvo em additional_data (${connectionData.additional_data.shop_id}) para esta conexão.`);
         }
 
         let accessToken = connectionData.access_token;
         let refreshToken = connectionData.refresh_token;
         const expiresAt = new Date(connectionData.access_token_expires_at);
         const now = new Date();
-        const partnerIdFromDB = connectionData.additional_data ? connectionData.additional_data.partner_id : Number(SHOPEE_PARTNER_ID_LIVE);
+        const partnerId = connectionData.additional_data ? connectionData.additional_data.partner_id : Number(SHOPEE_PARTNER_ID_LIVE);
 
         if (now >= expiresAt) {
             console.log(`🔄 [API_ROUTE] Access Token para Shop ID: ${shopId} expirado. Tentando refrescar...`);
             try {
-                const newTokens = await refreshShopeeAccessToken(shopId, refreshToken); 
+                const newTokens = await refreshShopeeAccessToken(shopId, refreshToken);
                 accessToken = newTokens.access_token;
                 refreshToken = newTokens.refresh_token;
                 const newExpiresAt = new Date(Date.now() + newTokens.expire_in * 1000);
 
-                // Atualizando na tabela client_connections
                 const { error: updateError } = await supabase
                     .from('client_connections')
                     .upsert({
@@ -318,9 +311,9 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
                         connection_name: CONNECTION_NAME,
                         access_token: accessToken,
                         refresh_token: refreshToken,
-                        access_token_expires_at: newExpiresAt.toISOString(), 
+                        access_token_expires_at: newExpiresAt.toISOString(),
                         updated_at: new Date().toISOString()
-                    }, { onConflict: ['client_id', 'connection_name'] }); 
+                    }, { onConflict: ['client_id', 'connection_name'] });
 
                 if (updateError) {
                     console.error('❌ [API_ROUTE] Erro ao atualizar tokens no Supabase após refresh:', updateError.message);
@@ -334,71 +327,71 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
             }
         }
 
+        // --- INÍCIO DO CÓDIGO ATUALIZADO PARA A CHAMADA DA API DE PEDIDOS ---
         const ordersPath = "/api/v2/order/get_order_list";
         const timestamp = Math.floor(Date.now() / 1000);
-        const partnerId = partnerIdFromDB; 
 
-        // === Adicionando time_from e time_to ===
+        // Cálculo de intervalo de tempo (últimos 7 dias)
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const timeFrom = Math.floor(sevenDaysAgo.getTime() / 1000); // Unix timestamp em segundos
         const timeTo = timestamp; // Agora
 
-        // Parâmetros que vão na URL e que contribuem para a assinatura
-        // Excluindo partner_id, timestamp, access_token, shop_id
+        // Parâmetros que serão incluídos na assinatura, EM ORDEM ALFABÉTICA PELO NOME DO PARÂMETRO
         const signatureExtraParams = {
-            order_status: 'READY_TO_SHIP',
-            page_size: 10,
-            time_from: timeFrom,
-            time_to: timeTo,
-            time_range_field: 'create_time', // ou 'update_time', dependendo do que você quer filtrar
+            cursor: "", // Adicionado para corresponder ao exemplo do manual Python
+            order_status: 'READY_TO_SHIP', // Defina o status do pedido que deseja buscar
+            page_size: 20, // Ajustado para 20 para corresponder ao exemplo do manual Python
+            response_optional_fields: "order_status", // Adicionado para corresponder ao exemplo
+            time_from: timeFrom, // Usando o cálculo de timeFrom de 7 dias atrás
+            time_range_field: 'create_time', // Campo de tempo para o filtro
+            time_to: timeTo, // Usando o cálculo de timeTo (agora)
         };
 
-        console.log(`[DEBUG_SIGN_ORDER_LIST] signatureExtraParams:`, signatureExtraParams);
+        // Constrói a string de parâmetros adicionais para a assinatura
+        let sortedParamValuesForSignature = '';
+        const sortedKeys = Object.keys(signatureExtraParams).sort(); // Garante ordem alfabética
+        for (const key of sortedKeys) {
+            sortedParamValuesForSignature += signatureExtraParams[key];
+        }
 
-        // Gerar a parte dos parâmetros adicionais para a base string da assinatura
-        // Convertendo todos os valores para string e ordenando as chaves alfabeticamente
-        const sortedParamValuesForSignature = Object.keys(signatureExtraParams)
-            .sort()
-            .map(key => {
-                const value = signatureExtraParams[key];
-                console.log(`[DEBUG_SIGN_ORDER_LIST] Sorting param: ${key}, value: ${value}, type: ${typeof value}`);
-                return String(value); // Garante que os valores são strings
-            })
-            .join('');
-
-        console.log(`[DEBUG_SIGN_ORDER_LIST] sortedParamValuesForSignature: "${sortedParamValuesForSignature}"`);
-
-        // Base string para cálculo da assinatura (conforme documentação Shopee para GET)
+        // Constrói a Base String COMPLETA para a assinatura (conforme documentação da Shopee para GET)
         const baseStringOrderList = `${partnerId}${ordersPath}${timestamp}${accessToken}${Number(shopId)}${sortedParamValuesForSignature}`;
-        
+
+        // Gera a assinatura HMAC-SHA256
+        const signatureOrderList = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE)
+                                       .update(baseStringOrderList)
+                                       .digest('hex');
+
+        // --- DEBUG LOGS: Mantenha estas linhas! Elas são essenciais para depuração ---
+        console.log(`[DEBUG_SIGN_ORDER_LIST] sortedParamValuesForSignature: "${sortedParamValuesForSignature}"`);
         console.log(`[DEBUG_SIGN_ORDER_LIST] Base String COMPLETA (Order List): "${baseStringOrderList}"`);
-        console.log(`[DEBUG_SIGN_ORDER_LIST] API Key being used (first 5 chars): "${SHOPEE_API_KEY_LIVE.substring(0, 5)}..."`); // Mascarando para segurança
-        console.log(`[DEBUG_SIGN_ORDER_LIST] Access Token (first 5 chars): "${accessToken.substring(0, 5)}..."`); // Mascarando para segurança
+        console.log(`[DEBUG_SIGN_ORDER_LIST] API Key being used (first 5 chars): "${SHOPEE_API_KEY_LIVE.substring(0, 5)}..."`);
+        console.log(`[DEBUG_SIGN_ORDER_LIST] Access Token (first 5 chars): "${accessToken.substring(0, 5)}..."`);
         console.log(`[DEBUG_SIGN_ORDER_LIST] Shop ID used: ${Number(shopId)}`);
-
-        // Calcular a assinatura
-        const signatureOrderList = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseStringOrderList).digest('hex');
-
         console.log(`[DEBUG_SIGN_ORDER_LIST] Generated Sign (Order List): "${signatureOrderList}"`);
 
-        // Construir a URL final com todos os parâmetros, incluindo a assinatura
+        // Constrói os parâmetros da query para a URL final
         const finalQueryParams = new URLSearchParams({
             partner_id: partnerId,
             timestamp: timestamp,
-            sign: signatureOrderList, // Adicionar a assinatura calculada
-            access_token: accessToken, // Token de acesso principal
-            shop_id: Number(shopId),   // ID da loja como número
-            ...signatureExtraParams    // Espalhar todos os outros parâmetros (serão ordenados pelo URLSearchParams)
+            sign: signatureOrderList,
+            access_token: accessToken,
+            shop_id: Number(shopId),
+            ...signatureExtraParams
         }).toString();
 
+        // Constrói a URL final da API
         const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?${finalQueryParams}`;
 
         console.log(`[SHOPEE_API] Chamando: ${ordersUrl}`);
 
+        // Faz a requisição HTTP real para a API da Shopee
         const shopeeResponse = await axios.get(ordersUrl, {
             headers: { 'Content-Type': 'application/json' }
         });
+        // --- FIM DO CÓDIGO ATUALIZADO PARA A CHAMADA DA API DE PEDIDOS ---
+
 
         if (shopeeResponse.data.error) {
             throw new Error(shopeeResponse.data.message || 'Erro desconhecido ao buscar pedidos.');
@@ -407,7 +400,6 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         const orders = shopeeResponse.data.response.order_list;
         console.log(`[API_ROUTE] ${orders.length} pedidos encontrados para Shop ID: ${shopId}.`);
 
-        // O upsert para 'orders_raw_shopee' permanece o mesmo, pois não depende da tabela 'client_connections'
         if (orders.length > 0) {
             const ordersToInsert = orders.map(order => ({
                 order_sn: order.order_sn,
@@ -477,7 +469,7 @@ router.get('/auth/shopee/normalize', async (req, res) => {
                 const totalAmount = parseFloat(originalData.total_amount) || 0;
                 const shippingFee = parseFloat(originalData.actual_shipping_fee) || 0;
 
-                const liquidValue = totalAmount - shippingFee; 
+                const liquidValue = totalAmount - shippingFee;
 
                 const normalizedData = {
                     client_id: clientId,
