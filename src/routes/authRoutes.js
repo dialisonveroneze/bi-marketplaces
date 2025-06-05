@@ -71,10 +71,10 @@ function generateShopeeAuthLink() {
 
     // ESTA É A BASE STRING CORRETA para auth_partner, CONFORME O MANUAL!
     // A base string para auth_partner é partner_id + path + timestamp
-    const tmpBaseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timest}`;
+    const tmpBaseString = `${SHOPEE_PARTENER_ID_LIVE}${path}${timest}`;
 
     // A assinatura para auth_partner usa a APP KEY, não o PARTNER ID, na chave HMAC
-    const sign = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE) // === CORREÇÃO: Usar SHOPEE_APP_KEY_LIVE como chave aqui ===
+    const sign = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE) // ✅ Confirmado: Usar SHOPEE_APP_KEY_LIVE como chave aqui
                          .update(tmpBaseString)
                          .digest('hex');
 
@@ -121,18 +121,19 @@ async function getAccessTokenFromCode(code, shopId, mainAccountId) {
     console.log(`[DEBUG_GET_TOKEN_PREP] Request Body (para API): ${JSON.stringify(requestBody)}`);
 
 
-    // === CORREÇÃO CRÍTICA AQUI: baseString DEVE INCLUIR JSON.stringify(requestBody) para token/get e access_token/get ===
-    const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
+    // === CORREÇÃO AGORA CORRETA AQUI ===
+    // A base string para token/get e access_token/get NÃO inclui JSON.stringify(requestBody)
+    const baseString = `${partnerId}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE).update(baseString).digest('hex'); // Usando SHOPEE_APP_KEY_LIVE
 
     console.log(`[DEBUG_SIGN_GET_TOKEN] Partner ID: ${partnerId}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Path: ${path}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Timestamp: ${timestamp}`);
-    console.log(`[DEBUG_SIGN_GET_TOKEN] Request Body (stringified para signature): ${JSON.stringify(requestBody)}`);
-    console.log(`[DEBUG_SIGN_GET_TOKEN] Base String COMPLETA (COM Body para signature): ${baseString}`); // Log atualizado
+    console.log(`[DEBUG_SIGN_GET_TOKEN] Request Body (stringified para signature): ${JSON.stringify(requestBody)}`); // Apenas para log, não usado na baseString
+    console.log(`[DEBUG_SIGN_GET_TOKEN] Base String COMPLETA (SEM Body para signature): ${baseString}`); // Log atualizado
     console.log(`[DEBUG_SIGN_GET_TOKEN] Generated Sign: ${sign}`);
 
-    // === CORREÇÃO CRÍTICA AQUI: REMOVER &redirect=... da URL para chamada de API de token ===
+    // === CORREÇÃO AGORA CORRETA AQUI ===
     // A URL para token NÃO inclui o redirect na query string, ele vai no payload POST
     const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
 
@@ -186,18 +187,19 @@ async function refreshShopeeAccessToken(refreshToken, shopId, mainAccountId) {
         requestBody.main_account_id = Number(mainAccountId);
     }
 
-    // === CORREÇÃO CRÍTICA AQUI: baseString DEVE INCLUIR JSON.stringify(requestBody) para token/get e access_token/get ===
-    const baseString = `${partnerId}${path}${timestamp}${JSON.stringify(requestBody)}`;
+    // === CORREÇÃO AGORA CORRETA AQUI ===
+    // A base string para token/get e access_token/get NÃO inclui JSON.stringify(requestBody)
+    const baseString = `${partnerId}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_APP_KEY_LIVE).update(baseString).digest('hex'); // Usando SHOPEE_APP_KEY_LIVE
 
     console.log(`[DEBUG_SIGN_REFRESH] Partner ID: ${partnerId}`);
     console.log(`[DEBUG_SIGN_REFRESH] Path: ${path}`);
     console.log(`[DEBUG_SIGN_REFRESH] Timestamp: ${timestamp}`);
-    console.log(`[DEBUG_SIGN_REFRESH] Request Body (Refresh, stringified para signature): ${JSON.stringify(requestBody)}`);
-    console.log(`[DEBUG_SIGN_REFRESH] Base String COMPLETA (Refresh, COM Body para signature): ${baseString}`); // Log atualizado
+    console.log(`[DEBUG_SIGN_REFRESH] Request Body (Refresh, stringified para signature): ${JSON.stringify(requestBody)}`); // Apenas para log, não usado na baseString
+    console.log(`[DEBUG_SIGN_REFRESH] Base String COMPLETA (Refresh, SEM Body para signature): ${baseString}`); // Log atualizado
     console.log(`[DEBUG_SIGN_REFRESH] Generated Sign (Refresh): ${sign}`);
 
-    // === CORREÇÃO CRÍTICA AQUI: REMOVER &redirect=... da URL para chamada de API de token ===
+    // === CORREÇÃO AGORA CORRETA AQUI ===
     const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
 
     try {
@@ -228,20 +230,6 @@ async function refreshShopeeAccessToken(refreshToken, shopId, mainAccountId) {
 
 
 // --- Rotas da API ---
-
-// Rota raiz - APENAS PARA VERIFICAR SE O SERVIDOR ESTÁ RODANDO
-// === CORREÇÃO CRÍTICA AQUI: ESTA ROTA FOI MOVIDA PARA server.js. REMOVA-A DAQUI! ===
-// Se esta rota estiver aqui e também em server.js, a ordem em server.js importa.
-// Se você está usando app.use(authRoutes) em server.js, e router.get('/') está aqui,
-// ela pode sobrepor outras rotas. A melhor prática é manter a rota raiz APENAS no server.js.
-// Se você AINDA estiver vendo essa mensagem, é porque esta rota ainda está aqui.
-// Removida pois o server.js já tem a rota raiz e app.use(authRoutes) a montaria sem prefixo,
-// o que causaria conflito ou sobreposição.
-// router.get('/', (req, res) => {
-//     res.status(200).send('Servidor BI Marketplace Integrator rodando! Use /auth/shopee/callback para autorização.');
-// });
-// console.log("Saiu da funcao router.get '/' para verificar se o servidor esta rodando evai entrar no endpoint callback"); // Este log também não será mais executado.
-
 
 // Endpoint de Callback da Shopee - Onde a Shopee redireciona APÓS a autorização
 router.get('/auth/shopee/callback', async (req, res) => {
@@ -376,7 +364,7 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
 
             } catch (refreshError) {
                 console.error('❌ [API_ROUTE] Falha ao refrescar Access Token:', refreshError.message);
-                return res.status(500).json({ error: 'Falha ao refrescar Access Token. Por favor, tente autorizar a loja/conta principal novamente.', details: refreshError.message });
+                return res.status(500).json({ error: 'Falha ao refrescar Access Token. Por favor, tente autorizar a loja novamente.', details: refreshError.message });
             }
         }
 
