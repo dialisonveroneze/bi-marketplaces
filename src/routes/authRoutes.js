@@ -59,7 +59,33 @@ if (!shopeeConfigOk) {
     console.log("--- Todas as variáveis de ambiente da Shopee estão configuradas corretamente. ---");
 }
 console.log("------------------------------------------");
+function generateShopeeAuthLink() {
+    const timest = Math.floor(Date.now() / 1000);
+    const path = "/api/v2/shop/auth_partner";
 
+    // ESTA É A BASE STRING CORRETA para auth_partner, CONFORME O MANUAL!
+    const tmpBaseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timest}`; 
+    
+    const sign = crypto.createHmac('sha256', SHOPEE_PARTNER_ID_LIVE)
+                       .update(tmpBaseString)
+                       .digest('hex');
+
+    const url = (
+        `${authHost}${path}` +
+        `?partner_id=${SHOPEE_PARTNER_ID_LIVE}` +
+        `&redirect=${encodeURIComponent(SHOPEE_REDIRECT_URL_LIVE)}` + // ✅ Confirmação: 'encodeURIComponent' já trata os caracteres especiais como '%3A%2F%2F' corretamente.
+        `&timestamp=${timest}` +
+        `&sign=${sign}` 
+    );
+    return url;
+}
+
+const authLink = generateShopeeAuthLink();
+
+console.log("--------------------------------------------------------------------------------");
+console.log("COPIE E COLE ESTE LINK NO SEU NAVEGADOR (use imediatamente):");
+console.log(authLink);
+console.log("--------------------------------------------------------------------------------");
 
 /**
  * Obtém o access_token e refresh_token usando o code da Shopee.
