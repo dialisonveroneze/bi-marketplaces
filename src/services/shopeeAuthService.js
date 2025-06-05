@@ -2,7 +2,7 @@
 const axios = require('axios');
 const crypto = require('crypto');
 const shopeeConfig = require('../config/shopeeConfig');
-const supabase = require('..//config/supabase'); // Caminho corrigido para supabase.js
+const supabase = require('../config/supabase'); // Caminho corrigido para supabase.js
 
 const {
     SHOPEE_PARTNER_ID_LIVE,
