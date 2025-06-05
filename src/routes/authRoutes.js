@@ -329,7 +329,7 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
 
         // --- INÍCIO DO CÓDIGO ATUALIZADO PARA A CHAMADA DA API DE PEDIDOS ---
         const ordersPath = "/api/v2/order/get_order_list";
-        const timestamp = Math.floor(Date.now() / 1000);
+        const timestamp = Math.floor(Date.now() / 1000); // Garante que o timestamp seja atual
 
         // Cálculo de intervalo de tempo (últimos 7 dias)
         const sevenDaysAgo = new Date();
@@ -338,14 +338,15 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         const timeTo = timestamp; // Agora
 
         // Parâmetros que serão incluídos na assinatura, EM ORDEM ALFABÉTICA PELO NOME DO PARÂMETRO
+        // E com o valor do 'cursor' como a string literal de aspas duplas '""'
         const signatureExtraParams = {
-            cursor: "", // Adicionado para corresponder ao exemplo do manual Python
-            order_status: 'READY_TO_SHIP', // Defina o status do pedido que deseja buscar
-            page_size: 20, // Ajustado para 20 para corresponder ao exemplo do manual Python
-            response_optional_fields: "order_status", // Adicionado para corresponder ao exemplo
-            time_from: timeFrom, // Usando o cálculo de timeFrom de 7 dias atrás
-            time_range_field: 'create_time', // Campo de tempo para o filtro
-            time_to: timeTo, // Usando o cálculo de timeTo (agora)
+            cursor: '""', // <<-- CORREÇÃO APLICADA AQUI. Agora a assinatura considera '""'
+            order_status: 'READY_TO_SHIP',
+            page_size: 20,
+            response_optional_fields: "order_status",
+            time_from: timeFrom,
+            time_range_field: 'create_time',
+            time_to: timeTo,
         };
 
         // Constrói a string de parâmetros adicionais para a assinatura
@@ -371,35 +372,24 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         console.log(`[DEBUG_SIGN_ORDER_LIST] Shop ID used: ${Number(shopId)}`);
         console.log(`[DEBUG_SIGN_ORDER_LIST] Generated Sign (Order List): "${signatureOrderList}"`);
 
-    // Constrói os parâmetros da query que iriam no final da URL, corrigindo a sintaxe.
-// ATENÇÃO: Os parâmetros DENTRO deste URLSearchParams serão ordenados ALFABETICAMENTE
-// pelo URLSearchParams.
-const finalQueryParams = new URLSearchParams({
-    // Certifique-se de que page_size e response_optional_fields estejam aqui
-    // ou em ...signatureExtraParams para serem incluídos na URL.
-    page_size: 20, // <-- Adicionado aqui, se não estiver em signatureExtraParams
-    response_optional_fields: 'order_status', // <-- Adicionado aqui, se não estiver em signatureExtraParams
-    timestamp: timestamp,
-    shop_id: Number(shopId),
-    order_status: 'READY_TO_SHIP',
-    partner_id: partnerId,
-    access_token: accessToken,
-    cursor: '""',
-    time_range_field: 'create_time',
-    time_from: timeFrom,
-    time_to: timeTo,
-    sign: signatureOrderList,
-    // Se signatureExtraParams já inclui page_size e response_optional_fields,
-    // você pode remover as duas linhas acima (`page_size` e `response_optional_fields`)
-    // e deixar que o spread adicione-os.
-    ...signatureExtraParams
-}).toString();
+        // Constrói a URL final da API, montando-a na sequência EXATA que você deseja.
+        // A parte fixa é adicionada primeiro, e depois o resultado de finalQueryParams.
+        const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?` +
+                          `page_size=20` +
+                          `&response_optional_fields=order_status` +
+                          `&timestamp=${timestamp}` +
+                          `&shop_id=${Number(shopId)}` +
+                          `&order_status=READY_TO_SHIP` +
+                          `&partner_id=${partnerId}` +
+                          `&access_token=${accessToken}` +
+                          `&cursor=${encodeURIComponent('""')}` + // Mantido aqui para que a URL tenha %22%22
+                          `&time_range_field=create_time` +
+                          `&time_from=${timeFrom}` +
+                          `&time_to=${timeTo}` +
+                          `&sign=${signatureOrderList}`;
+        // --- FIM DA CONSTRUÇÃO DA URL ---
 
-// Constrói a URL final da API, passando apenas o finalQueryParams.
-// Isso evita duplicação e é a forma canônica de construir a URL de query.
-const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?${finalQueryParams}`;
-
-console.log(`[SHOPEE_API] Chamando: ${ordersUrl}`);
+        console.log(`[SHOPEE_API] Chamando: ${ordersUrl}`);
 
         // Faz a requisição HTTP real para a API da Shopee
         const shopeeResponse = await axios.get(ordersUrl, {
