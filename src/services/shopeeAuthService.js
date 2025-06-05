@@ -168,4 +168,70 @@ async function refreshShopeeAccessToken(refreshToken, shopId, mainAccountId) {
             console.error(`❌ [AuthService:refreshShopeeAccessToken] HTTP Status Erro: ${error.response.status}`);
             console.error(`❌ [AuthService:refreshShopeeAccessToken] Dados do Erro Recebido: ${JSON.stringify(error.response.data)}`);
         }
-        throw new Error(`Fal
+        throw new Error(`Falha ao refrescar access token da Shopee: ${errorMessage}`);
+    } finally {
+        console.log(`--- [AuthService:refreshShopeeAccessToken] FIM DA REQUISIÇÃO ---\n`);
+    }
+}
+
+/**
+ * Busca os tokens de acesso e refresh do Supabase para um dado shop_id ou main_account_id.
+ * Se o token estiver expirado, tenta refrescá-lo e o atualiza no Supabase.
+ * @param {string} id O ID da loja ou conta principal.
+ * @param {string} idType 'shop_id' ou 'main_account_id'.
+ * @returns {Promise<object>} Um objeto contendo access_token, refresh_token e partner_id.
+ * @throws {Error} Se os tokens não forem encontrados ou falharem ao serem refrescados.
+ */
+async function getValidatedShopeeTokens(id, idType) {
+    console.log(`\n[AuthService:getValidatedShopeeTokens] Buscando tokens no Supabase para ${idType}: ${id}`);
+    const { data: connectionData, error: fetchError } = await supabase
+        .from('api_connections_shopee')
+        .select('access_token, refresh_token, token_expires_at, partner_id, shop_id, main_account_id')
+        .eq(idType, Number(id))
+        .single();
+
+    if (fetchError || !connectionData) {
+        console.error(`❌ [AuthService:getValidatedShopeeTokens] Erro ao buscar tokens no Supabase para ${idType}: ${id}. Detalhes: ${fetchError ? fetchError.message : 'Tokens não encontrados.'}`);
+        throw new Error('Tokens não encontrados para o ID fornecido. Por favor, autorize a loja/conta principal primeiro.');
+    }
+
+    let accessToken = connectionData.access_token;
+    let refreshToken = connectionData.refresh_token;
+    const expiresAt = new Date(connectionData.token_expires_at); // Convertendo para objeto Date
+    const now = new Date();
+    const partnerId = connectionData.partner_id;
+
+    console.log(`[AuthService:getValidatedShopeeTokens] Token atual para ${idType}: ${id}`);
+    console.log(`  Access Token (primeiros 5 caracteres): ${accessToken.substring(0, 5)}...`);
+    console.log(`  Refresh Token (primeiros 5 caracteres): ${refreshToken.substring(0, 5)}...`);
+    console.log(`  Expira em: ${expiresAt.toISOString()} (Agora: ${now.toISOString()})`);
+
+
+    const expirationBuffer = 5 * 60 * 1000; // 5 minutos em milissegundos
+    if (now.getTime() >= (expiresAt.getTime() - expirationBuffer)) {
+        console.log(`🔄 [AuthService:getValidatedShopeeTokens] Access Token para ${idType}: ${id} expirado ou próximo de expirar. Tentando refrescar...`);
+        try {
+            // Chama a função de refresh, passando os IDs corretos
+            const newTokens = await refreshShopeeAccessToken(refreshToken, connectionData.shop_id, connectionData.main_account_id);
+            accessToken = newTokens.access_token;
+            refreshToken = newTokens.refresh_token; // O refresh token também pode ser atualizado
+            const newExpiresAt = new Date(Date.now() + newTokens.expire_in * 1000); // Nova data de expiração
+
+            console.log(`[AuthService:getValidatedShopeeTokens] Novos tokens obtidos: Access Token (primeiros 5 caracteres): ${accessToken.substring(0, 5)}..., Expira em: ${newExpiresAt.toISOString()}`);
+
+            // Atualiza os tokens no Supabase
+            const { error: updateError } = await supabase
+                .from('api_connections_shopee')
+                .upsert({
+                    [idType]: Number(id), // Usa o ID da loja ou conta principal para o upsert
+                    access_token: accessToken,
+                    refresh_token: refreshToken,
+                    token_expires_at: newExpiresAt.toISOString(), // Salva em formato ISO 8601
+                    last_updated_at: new Date().toISOString()
+                }, { onConflict: idType }); // Conflito pelo shop_id ou main_account_id
+
+            if (updateError) {
+                console.error('❌ [AuthService:getValidatedShopeeTokens] Erro ao atualizar tokens no Supabase após refresh:', updateError.message);
+                // Mesmo com erro de atualização, o novo access_token foi obtido e pode ser usado
+            } else {
+                console.log(`✅
