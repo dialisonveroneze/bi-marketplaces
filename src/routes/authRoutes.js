@@ -79,14 +79,17 @@ router.get('/shopee/callback', async (req, res) => {
         }
 
         console.log(`  Dados para upsert no Supabase: ${JSON.stringify(upsertData)}`);
+        // NOVO LOG PARA A CHAVE DE CONFLITO
+        console.log(`  Chave de Conflito para Upsert no Supabase: '${idType}'`);
+
         // Salva ou atualiza os tokens e informações no Supabase
         const { error: upsertError } = await supabase
             .from('api_connections_shopee')
             .upsert(upsertData, { onConflict: idType }); // Define a chave de conflito para upsert
 
         if (upsertError) {
-            console.error('❌ [AuthRoutes:/shopee/callback] Erro ao salvar/atualizar tokens no Supabase:', upsertError.message);
-            return res.status(500).json({ error: 'Erro ao salvar tokens no Supabase', details: upsertError.message });
+            console.error('❌ [AuthRoutes:/shopee/callback] Erro ao salvar/atualizar tokens no Supabase:', upsertError.message || JSON.stringify(upsertError));
+            return res.status(500).json({ error: 'Erro ao salvar tokens no Supabase', details: upsertError.message || JSON.stringify(upsertError) });
         } else {
             console.log(`✅ [AuthRoutes:/shopee/callback] Tokens salvos/atualizados no Supabase para ${idType}: ${idToProcess}.`);
         }
