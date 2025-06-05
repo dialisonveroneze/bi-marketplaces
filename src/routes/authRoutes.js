@@ -60,6 +60,13 @@ if (!shopeeConfigOk) {
 }
 console.log("------------------------------------------");
 function generateShopeeAuthLink() {
+    if (!SHOPEE_PARTNER_ID_LIVE || !SHOPEE_APP_KEY_LIVE || !SHOPEE_REDIRECT_URL_LIVE || !SHOPEE_AUTH_HOST_LIVE) {
+        console.error("Erro: Variáveis de ambiente SHOPEE_PARTNER_ID_LIVE, SHOPEE_API_KEY_LIVE, SHOPEE_REDIRECT_URL_LIVE ou SHOPEE_AUTH_HOST_LIVE não estão configuradas no .env.");
+        console.error("Certifique-se de que o arquivo .env existe e as variáveis estão definidas.");
+        process.exit(1);
+    }
+	
+	
     const timest = Math.floor(Date.now() / 1000);
     const path = "/api/v2/shop/auth_partner";
 
