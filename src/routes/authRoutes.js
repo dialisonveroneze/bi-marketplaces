@@ -71,7 +71,7 @@ function generateShopeeAuthLink() {
                        .digest('hex');
 
     const url = (
-        `${authHost}${path}` +
+        `${SHOPEE_AUTH_HOST_LIVE}${path}` +
         `?partner_id=${SHOPEE_PARTNER_ID_LIVE}` +
         `&redirect=${encodeURIComponent(SHOPEE_REDIRECT_URL_LIVE)}` + // ✅ Confirmação: 'encodeURIComponent' já trata os caracteres especiais como '%3A%2F%2F' corretamente.
         `&timestamp=${timest}` +
