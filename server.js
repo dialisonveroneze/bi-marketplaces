@@ -19,8 +19,8 @@ app.use(authRoutes);
 // Rota raiz - para verificar se o servidor está online e direcionar
 app.get('/', (req, res) => {
     res.status(200).send('Servidor BI Marketplace Integrator rodando! Use /auth/shopee/callback para autorização.');
-	console.log('-_teste para ver se seguiu dentro do server--');
 });
+console.log('-_teste para ver se seguiu dentro do server--');
 
 // Middleware para lidar com rotas não encontradas (404)
 app.use((req, res, next) => {
