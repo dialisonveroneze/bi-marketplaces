@@ -102,7 +102,7 @@ async function getAccessTokenFromCode(code, shopId) {
     console.log(`[DEBUG_SIGN_GET_TOKEN] Base String COMPLETA: ${baseString}`);
     console.log(`[DEBUG_SIGN_GET_TOKEN] Generated Sign: ${sign}`);
 
-    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${partnerId}&xtamp=${timestamp}&sign=${sign}`;
 
     try {
         console.log(`[DEBUG_API_CALL] URL para token: ${url}`);
