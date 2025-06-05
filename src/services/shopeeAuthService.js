@@ -2,7 +2,7 @@
 const axios = require('axios');
 const crypto = require('crypto');
 const shopeeConfig = require('../config/shopeeConfig');
-const supabase = require('../config/supabase');
+const supabase = require('..//config/supabase'); // Caminho corrigido para supabase.js
 
 const {
     SHOPEE_PARTNER_ID_LIVE,
@@ -21,7 +21,7 @@ function generateShopeeAuthLink() {
     const path = "/api/v2/shop/auth_partner";
 
     // A string base para a assinatura é composta por: Partner ID + Path da API + Timestamp
-    const tmpBaseString = `<span class="math-inline">\{SHOPEE\_PARTNER\_ID\_LIVE\}</span>{path}${timest}`;
+    const tmpBaseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timest}`;
 
     // Gera a assinatura usando HMAC-SHA256 com a API Key como segredo
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE)
@@ -30,7 +30,7 @@ function generateShopeeAuthLink() {
 
     // Constrói a URL de autorização com todos os parâmetros necessários
     const url = (
-        `<span class="math-inline">\{SHOPEE\_AUTH\_HOST\_LIVE\}</span>{path}` +
+        `${SHOPEE_AUTH_HOST_LIVE}${path}` +
         `?partner_id=${SHOPEE_PARTNER_ID_LIVE}` +
         `&redirect=${encodeURIComponent(SHOPEE_REDIRECT_URL_LIVE)}` + // URL de callback da sua aplicação
         `&timestamp=${timest}` +
@@ -65,10 +65,10 @@ async function getAccessTokenFromCode(code, shopId, mainAccountId) {
 
     // A base string para a assinatura do token/get não inclui o body da requisição, apenas parâmetros de URL e headers.
     // Para esta API específica, a assinatura é baseada em partner_id, path, timestamp.
-    const baseString = `<span class="math-inline">\{SHOPEE\_PARTNER\_ID\_LIVE\}</span>{path}${timestamp}`;
+    const baseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    const url = `<span class="math-inline">\{SHOPEE\_API\_HOST\_LIVE\}</span>{path}?partner_id=<span class="math-inline">\{SHOPEE\_PARTNER\_ID\_LIVE\}&timestamp\=</span>{timestamp}&sign=${sign}`;
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${SHOPEE_PARTNER_ID_LIVE}&timestamp=${timestamp}&sign=${sign}`;
 
     console.log(`\n--- [AuthService:getAccessTokenFromCode] INÍCIO DA REQUISIÇÃO ---`);
     console.log(`  URL de Requisição: ${url}`);
@@ -131,10 +131,10 @@ async function refreshShopeeAccessToken(refreshToken, shopId, mainAccountId) {
         requestBody.main_account_id = Number(mainAccountId);
     }
 
-    const baseString = `<span class="math-inline">\{SHOPEE\_PARTNER\_ID\_LIVE\}</span>{path}${timestamp}`;
+    const baseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 
-    const url = `<span class="math-inline">\{SHOPEE\_API\_HOST\_LIVE\}</span>{path}?partner_id=<span class="math-inline">\{SHOPEE\_PARTNER\_ID\_LIVE\}&timestamp\=</span>{timestamp}&sign=${sign}`;
+    const url = `${SHOPEE_API_HOST_LIVE}${path}?partner_id=${SHOPEE_PARTNER_ID_LIVE}&timestamp=${timestamp}&sign=${sign}`;
 
     console.log(`\n--- [AuthService:refreshShopeeAccessToken] INÍCIO DA REQUISIÇÃO ---`);
     console.log(`  URL de Requisição: ${url}`);
@@ -234,4 +234,23 @@ async function getValidatedShopeeTokens(id, idType) {
                 console.error('❌ [AuthService:getValidatedShopeeTokens] Erro ao atualizar tokens no Supabase após refresh:', updateError.message);
                 // Mesmo com erro de atualização, o novo access_token foi obtido e pode ser usado
             } else {
-                console.log(`✅
+                console.log(`✅ [AuthService:getValidatedShopeeTokens] Tokens para ${idType}: ${id} refrescados e atualizados no Supabase.`);
+            }
+        } catch (refreshError) {
+            console.error('❌ [AuthService:getValidatedShopeeTokens] Falha ao refrescar Access Token:', refreshError.message);
+            throw new Error(`Falha ao refrescar Access Token. Por favor, tente autorizar a loja novamente. Detalhes: ${refreshError.message}`);
+        }
+    } else {
+        console.log(`✅ [AuthService:getValidatedShopeeTokens] Access Token para ${idType}: ${id} ainda válido.`);
+    }
+    console.log(`--- [AuthService:getValidatedShopeeTokens] FIM DA VALIDAÇÃO ---\n`);
+
+    return { access_token: accessToken, refresh_token: refreshToken, partner_id: partnerId };
+}
+
+module.exports = {
+    generateShopeeAuthLink,
+    getAccessTokenFromCode,
+    refreshShopeeAccessToken,
+    getValidatedShopeeTokens,
+};
