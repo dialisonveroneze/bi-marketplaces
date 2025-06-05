@@ -17,7 +17,7 @@ app.use(cors()); // Habilita CORS para todas as rotas
 // A Shopee redireciona para /auth/shopee/callback
 // Se authRoutes.js já define router.get('/auth/shopee/callback', ...),
 // então basta usar '/' aqui para que o caminho completo seja respeitado.
-app.use('/', authRoutes); 
+app.use('/auth/shopee/callback', authRoutes); 
 
 // Rota básica para testar se o servidor está funcionando
 // Esta rota responderá apenas se nenhuma rota em authRoutes.js com '/' for acionada antes.
