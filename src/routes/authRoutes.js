@@ -30,7 +30,7 @@ console.log("--- Verificando Variáveis de Ambiente da Shopee ---");
 console.log(`SHOPEE_PARTNER_ID_LIVE (Esperado: seu ID de parceiro): ${SHOPEE_PARTNER_ID_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
 // Log atualizado para SHOPEE_APP_KEY_LIVE (ou o nome que você está usando no .env/Render)
 console.log(`SHOPEE_APP_KEY_LIVE (Esperado: sua App Key): ${SHOPEE_APP_KEY_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
-console.log(`SHOPEE_API_HOST_LIVE (Esperado: https://openplatform.shopee.com.br): ${SHOPEE_API_HOST_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
+console.log(`SHOPEE_API_HOST_LIVE (Esperado: https://openplatform.shopee.com.br): ${SHOPEE_API_HOST_LIVE ? 'OK' : 'FALTANDO/INCORRETO'} ${SHOPEE_API_HOST_LIVE}`);
 console.log(`SHOPEE_REDIRECT_URL_LIVE (Esperado: Sua URL de callback): ${SHOPEE_REDIRECT_URL_LIVE ? 'OK' : 'FALTANDO/INCORRETO'}`);
 
 let shopeeConfigOk = true;
