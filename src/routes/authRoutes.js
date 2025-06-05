@@ -371,18 +371,36 @@ router.get('/auth/shopee/fetch-orders', async (req, res) => {
         console.log(`[DEBUG_SIGN_ORDER_LIST] Shop ID used: ${Number(shopId)}`);
         console.log(`[DEBUG_SIGN_ORDER_LIST] Generated Sign (Order List): "${signatureOrderList}"`);
 
-        // Constrói os parâmetros da query para a URL final
+        // Constrói os parâmetros da query que iriam no final da URL, corrigindo a sintaxe.
+        // ATENÇÃO: Os parâmetros DENTRO deste URLSearchParams serão ordenados ALFABETICAMENTE
+        // pelo URLSearchParams. Mas eles virão DEPOIS dos parâmetros fixos na `ordersUrl`.
         const finalQueryParams = new URLSearchParams({
-            partner_id: partnerId,
             timestamp: timestamp,
-            sign: signatureOrderList,
-            access_token: accessToken,
             shop_id: Number(shopId),
+            // Corrigindo a sintaxe para pares chave-valor válidos
+            order_status: 'READY_TO_SHIP', // Era '&order_status=READY_TO_SHIP,'
+            partner_id: partnerId,
+            access_token: accessToken,
+            // Corrigindo a sintaxe para múltiplos pares chave-valor
+            cursor: "",
+            time_range_field: 'create_time',
+            time_from: timeFrom, // Assumindo que 'timeFrom' é uma variável já definida
+            time_to: timeTo,     // Assumindo que 'timeTo' é uma variável já definida
+            sign: signatureOrderList,
+            // Mantendo o spread de ...signatureExtraParams.
+            // Certifique-se de que os campos acima (order_status, cursor, etc.)
+            // não estejam duplicados dentro de signatureExtraParams, caso contrário,
+            // URLSearchParams pode se comportar de forma inesperada com duplicatas.
+            // O ideal é que eles venham apenas de um lugar.
             ...signatureExtraParams
         }).toString();
 
-        // Constrói a URL final da API
-        const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?${finalQueryParams}`;
+        // Constrói a URL final da API, montando-a na sequência EXATA que você deseja.
+        // A parte fixa é adicionada primeiro, e depois o resultado de finalQueryParams.
+        const ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?` +
+                          `page_size=20` +
+                          `&response_optional_fields=order_status` +
+                          `&${finalQueryParams}`; // Adiciona o resultado do URLSearchParams aqui
 
         console.log(`[SHOPEE_API] Chamando: ${ordersUrl}`);
 
