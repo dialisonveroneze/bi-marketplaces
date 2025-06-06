@@ -68,7 +68,12 @@ function buildSignedShopeeUrl(path, access_token, id, idType, additionalParams =
  * @returns {Promise<object>} A resposta de dados da API da Shopee.
  */
 async function sendShopeeGetRequest(url) {
-    console.log(`[ShopeeOrderAPI] Requisição GET para: ${url}`);
+	// --- NOVO LOG AQUI ---
+    console.log(`\n--- [ShopeeOrderAPI] Fazendo requisição GET para Shopee ---`);
+    console.log(`[ShopeeOrderAPI] URL da Requisição: ${url}`);
+    // Para GET, não há body, mas podemos adicionar um log se fosse POST/PUT
+    console.log(`---------------------------------------------------------\n`);
+    // --- FIM DO NOVO LOG ---
     try {
         const response = await axios.get(url, {
             headers: { 'Content-Type': 'application/json' }
