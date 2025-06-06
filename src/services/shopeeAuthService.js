@@ -251,6 +251,14 @@ async function getValidatedShopeeTokens(id, idType) {
     return { access_token: accessToken, refresh_token: refreshToken, partner_id: partnerId };
 }
 
+// COLE A DEFINIÇÃO COMPLETA DE generateShopeeSignature AQUI:
+function generateShopeeSignature(partner_id, path, timestamp, access_token) {
+    // ... sua lógica de assinatura aqui, usando SHOPEE_API_KEY_LIVE
+    const baseString = `<span class="math-inline">\{partner\_id\}</span>{path}<span class="math-inline">\{timestamp\}</span>{access_token}${SHOPEE_API_KEY_LIVE}`;
+    return crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
+}
+
+
 module.exports = {
     generateShopeeAuthLink,
     getAccessTokenFromCode,
