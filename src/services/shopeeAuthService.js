@@ -251,6 +251,7 @@ async function getValidatedShopeeTokens(id, idType) {
     return { access_token: accessToken, refresh_token: refreshToken, partner_id: partnerId };
 }
 
+  console.log(`--- vai entrar na funcao shopeeAuthService.js  generateShopeeSignature `);
 // A função generateShopeeSignature DEVE ESTAR AQUI (uma única vez)
 function generateShopeeSignature(path, partnerId, timestamp, accessToken, shopId) {
     // CORRIGIR ESTA LINHA: Remover as tags <span>. Usar APENAS ${variavel}
