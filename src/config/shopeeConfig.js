@@ -1,7 +1,8 @@
 // src/config/shopeeConfig.js
 
 const SHOPEE_PARTNER_ID_LIVE = process.env.SHOPEE_PARTNER_ID_LIVE ? process.env.SHOPEE_PARTNER_ID_LIVE.trim() : undefined;
-const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE ? process.env.SHOPEE_API_KEY_LIVE.trim() : undefined;
+const SHOPEE_API_KEY_LIVE = "484f536f565a61686a424565496b79755a44776262705a4568656a7675746b44";
+//const SHOPEE_API_KEY_LIVE = process.env.SHOPEE_API_KEY_LIVE ? process.env.SHOPEE_API_KEY_LIVE.trim() : undefined;
 const SHOPEE_AUTH_HOST_LIVE = process.env.SHOPEE_AUTH_HOST_LIVE ? process.env.SHOPEE_AUTH_HOST_LIVE.trim() : undefined;
 const SHOPEE_API_HOST_LIVE = process.env.SHOPEE_API_HOST_LIVE ? process.env.SHOPEE_API_HOST_LIVE.trim() : undefined;
 const SHOPEE_REDIRECT_URL_LIVE = process.env.SHOPEE_REDIRECT_URL_LIVE ? process.env.SHOPEE_REDIRECT_URL_LIVE.trim() : undefined;
