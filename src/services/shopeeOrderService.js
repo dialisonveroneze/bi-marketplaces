@@ -26,7 +26,7 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
         const timeTo = Math.floor(Date.now() / 1000);
 
         const orderListQueryParams = {
-            cursor: '""',
+            cursor: "", // <-- AQUI! Agora é uma string vazia real.
             order_status: orderStatus,
             page_size: 20,
             response_optional_fields: "order_status",
