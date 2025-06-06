@@ -1,11 +1,7 @@
 // src/services/shopeeOrderService.js
-const axios = require('axios');
-const crypto = require('crypto');
-const shopeeConfig = require('../config/shopeeConfig');
-const supabase = require('../config/supabase');
-const { getValidatedShopeeTokens } = require('./shopeeAuthService'); // Importa a função de validação de tokens
-
-const { SHOPEE_PARTNER_ID_LIVE, SHOPEE_API_KEY_LIVE, SHOPEE_API_HOST_LIVE } = shopeeConfig;
+const supabase = require('../config/supabase'); // Certifique-se de que este caminho está correto
+const { getValidatedShopeeTokens } = require('./shopeeAuthService'); // Sua função de validação de tokens
+const { getShopeeOrderList, getShopeeOrderDetail } = require('./shopeeOrderAPI'); // <-- NOVA IMPORTAÇÃO
 
 /**
  * Busca pedidos da Shopee e os salva na tabela orders_raw_shopee.
@@ -18,84 +14,76 @@ const { SHOPEE_PARTNER_ID_LIVE, SHOPEE_API_KEY_LIVE, SHOPEE_API_HOST_LIVE } = sh
 async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP', daysAgo = 7) {
     console.log(`[shopeeOrderService] Buscando e salvando pedidos para ${idType}: ${id}`);
 
-    const { access_token, partner_id } = await getValidatedShopeeTokens(id, idType);
-
-    const ordersPath = "/api/v2/order/get_order_list";
-    const timestamp = Math.floor(Date.now() / 1000);
-    const timeFrom = Math.floor((Date.now() - daysAgo * 24 * 60 * 60 * 1000) / 1000);
-    const timeTo = timestamp;
-
-    const signatureQueryParams = {
-        cursor: '""',
-        order_status: orderStatus,
-        page_size: 20,
-        response_optional_fields: "order_status",
-        time_from: timeFrom,
-        time_range_field: 'create_time',
-        time_to: timeTo,
-    };
-
-    let sortedParamValuesForSignature = '';
-    const sortedKeys = Object.keys(signatureQueryParams).sort();
-    for (const key of sortedKeys) {
-        sortedParamValuesForSignature += signatureQueryParams[key];
-    }
-
-    let baseStringOrderList = `${partner_id}${ordersPath}${timestamp}${access_token}`;
-    baseStringOrderList += (idType === 'shop_id') ? `${Number(id)}` : `${Number(id)}`; // Adiciona shop_id ou main_account_id
-    baseStringOrderList += `${sortedParamValuesForSignature}`;
-
-    const signatureOrderList = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE)
-                                     .update(baseStringOrderList)
-                                     .digest('hex');
-
-    let ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?` +
-                        `access_token=${access_token}` +
-                        `&partner_id=${partner_id}` +
-                        `&sign=${signatureOrderList}` +
-                        `&timestamp=${timestamp}`;
-
-    ordersUrl += (idType === 'shop_id') ? `&shop_id=${Number(id)}` : `&main_account_id=${Number(id)}`;
-
-    ordersUrl += `&cursor=${encodeURIComponent('""')}` +
-                 `&order_status=${orderStatus}` +
-                 `&page_size=20` +
-                 `&response_optional_fields=order_status` +
-                 `&time_from=${timeFrom}` +
-                 `&time_range_field=create_time` +
-                 `&time_to=${timeTo}`;
-
     try {
-        const shopeeResponse = await axios.get(ordersUrl, {
-            headers: { 'Content-Type': 'application/json' }
-        });
+        const { access_token } = await getValidatedShopeeTokens(id, idType);
 
-        if (shopeeResponse.data.error) throw new Error(shopeeResponse.data.message || 'Erro desconhecido ao buscar pedidos.');
+        const timestamp = Math.floor(Date.now() / 1000);
+        const timeFrom = Math.floor((Date.now() - daysAgo * 24 * 60 * 60 * 1000) / 1000);
+        const timeTo = timestamp;
 
-        const orders = shopeeResponse.data.response.order_list;
-        console.log(`[shopeeOrderService] ${orders.length} pedidos encontrados para ${idType}: ${id}.`);
+        const orderListQueryParams = {
+            cursor: '""', // O cursor da Shopee é uma string vazia inicialmente
+            order_status: orderStatus,
+            page_size: 20,
+            response_optional_fields: "order_status",
+            time_from: timeFrom,
+            time_range_field: 'create_time',
+            time_to: timeTo,
+        };
 
-        if (orders.length > 0) {
-            const ordersToInsert = orders.map(order => ({
-                order_sn: order.order_sn,
-                shop_id: Number(order.shop_id),
-                original_data: order,
-                retrieved_at: new Date().toISOString()
-            }));
+        // 1. Chamar a API para obter a lista de pedidos
+        const shopeeResponseList = await getShopeeOrderList(id, idType, access_token, orderListQueryParams);
 
-            const { error: insertError } = await supabase
-                .from('orders_raw_shopee')
-                .upsert(ordersToInsert, { onConflict: 'order_sn' });
-
-            if (insertError) {
-                console.error('❌ [shopeeOrderService] Erro ao salvar pedidos brutos no Supabase:', insertError.message);
-                throw new Error(`Erro ao salvar pedidos brutos no Supabase: ${insertError.message}`);
-            }
+        if (shopeeResponseList.error) {
+            throw new Error(shopeeResponseList.message || 'Erro desconhecido ao buscar lista de pedidos.');
         }
-        return orders;
+
+        const ordersSummary = shopeeResponseList.response.order_list;
+        console.log(`[shopeeOrderService] ${ordersSummary.length} pedidos encontrados para ${idType}: ${id}.`);
+
+        if (ordersSummary.length === 0) {
+            console.log('[shopeeOrderService] Nenhum pedido novo para processar.');
+            return [];
+        }
+
+        // 2. Extrair order_sn_list para buscar detalhes
+        const orderSns = ordersSummary.map(order => order.order_sn);
+        const detailQueryParams = {
+            order_sn_list: orderSns,
+            response_optional_fields: ["item_list", "recipient_address", "logistic_info", "payment_info", "actual_shipping_fee", "total_amount", "currency", "shipping_carrier", "payment_method", "buyer_username", "create_time", "update_time"]
+        };
+
+        // 3. Chamar a API para obter detalhes dos pedidos
+        const shopeeResponseDetails = await getShopeeOrderDetail(id, idType, access_token, detailQueryParams);
+
+        if (shopeeResponseDetails.error) {
+            throw new Error(shopeeResponseDetails.message || 'Erro desconhecido ao buscar detalhes dos pedidos.');
+        }
+
+        const detailedOrders = shopeeResponseDetails.response.order_list;
+
+        // 4. Inserir/Atualizar os pedidos brutos no Supabase
+        const ordersToInsert = detailedOrders.map(order => ({
+            order_sn: order.order_sn,
+            shop_id: Number(order.shop_id || id), // Use order.shop_id se disponível, senão o id da requisição
+            original_data: order, // Salva o objeto completo retornado pela API
+            retrieved_at: new Date().toISOString()
+        }));
+
+        const { error: insertError } = await supabase
+            .from('orders_raw_shopee')
+            .upsert(ordersToInsert, { onConflict: 'order_sn' });
+
+        if (insertError) {
+            console.error('❌ [shopeeOrderService] Erro ao salvar pedidos brutos no Supabase:', insertError.message);
+            throw new Error(`Erro ao salvar pedidos brutos no Supabase: ${insertError.message}`);
+        }
+
+        return detailedOrders;
+
     } catch (error) {
-        console.error('Erro em fetchAndSaveShopeeOrders:', error.response ? JSON.stringify(error.response.data) : error.message);
-        throw new Error(`Falha ao buscar pedidos da Shopee: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
+        console.error('Erro em fetchAndSaveShopeeOrders:', error.message);
+        throw error;
     }
 }
 
