@@ -185,7 +185,7 @@ async function refreshShopeeAccessToken(refreshToken, shopId, mainAccountId) {
 async function getValidatedShopeeTokens(id, idType) {
     console.log(`\n[AuthService:getValidatedShopeeTokens] Buscando tokens no Supabase para ${idType}: ${id}`);
     const { data: connectionData, error: fetchError } = await supabase
-        .from('api_connections_shopee')
+        .from('client_connections')
         .select('access_token, refresh_token, token_expires_at, partner_id, shop_id, main_account_id')
         .eq(idType, Number(id))
         .single();
@@ -221,7 +221,7 @@ async function getValidatedShopeeTokens(id, idType) {
 
             // Atualiza os tokens no Supabase
             const { error: updateError } = await supabase
-                .from('api_connections_shopee')
+                .from('client_connections')
                 .upsert({
                     [idType]: Number(id), // Usa o ID da loja ou conta principal para o upsert
                     access_token: accessToken,
