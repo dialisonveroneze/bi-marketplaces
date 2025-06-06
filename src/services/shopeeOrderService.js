@@ -80,11 +80,13 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
         // 4. Inserir/Atualizar os pedidos brutos no Supabase
         console.log(`[ShopeeOrderService] Etapa 8: Preparando para inserir/atualizar pedidos brutos no Supabase...`);
         const ordersToInsert = detailedOrders.map(order => ({
-            order_id: order.order_sn,
-            client_id = "1",//shop_id: Number(connectionInfo.shop_id || id),
-            //order_id: order,
-            received_at: new Date().toISOString(),
-			api_name = ""
+			order_id: order.order_sn, // <-- Correto: usa ':'
+			client_id: "1",           // <-- CORREÇÃO AQUI: de '=' para ':'
+			// Se você quiser usar o shop_id da conexão, descomente e ajuste:
+			// shop_id: Number(connectionInfo.shop_id || id),
+			// order_id: order, // Esta linha está comentada e parece duplicada com a primeira order_id: order.order_sn
+			received_at: new Date().toISOString(),
+			api_name: "",             // <-- CORREÇÃO AQUI: de '=' para ':'
         }));
 
         const { error: insertError } = await supabase
