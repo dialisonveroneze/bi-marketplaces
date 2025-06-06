@@ -18,33 +18,33 @@ const { SHOPEE_PARTNER_ID_LIVE, SHOPEE_API_HOST_LIVE } = shopeeConfig;
  * @returns {string} A URL completa e assinada.
  */
 function buildSignedShopeeUrl(path, access_token, id, idType, additionalParams = {}) {
+    console.log(`[ShopeeOrderAPI:buildSignedShopeeUrl] Entrando na função. Path: ${path}`); // NOVO LOG 1
     const timestamp = Math.floor(Date.now() / 1000);
     const partner_id = SHOPEE_PARTNER_ID_LIVE;
 
-    // --- CORREÇÃO 1: Consolidação da Lógica do shopId ---
-    // Você não precisa de 'baseParams' separada para a URL final se já está construindo a URL diretamente.
-    // O shopId para assinatura E para a URL pode ser determinado de forma mais limpa.
     let shopIdForSignature = null;
-    let mainAccountIdForUrl = null; // Se main_account_id for usado na URL, prepare-o aqui
+    let mainAccountIdForUrl = null;
 
     if (idType === 'shop_id') {
         shopIdForSignature = Number(id); // Converter para número
     } else if (idType === 'main_account_id') {
         mainAccountIdForUrl = Number(id); // Prepare para adicionar na URL se for o caso
-        // Atenção: O manual da Shopee pede shop_id para a maioria das assinaturas.
-        // Se a API que você está chamando realmente usa main_account_id na assinatura,
-        // você precisaria ajustar generateShopeeSignature e a base string dela.
-        // Por ora, focamos em shop_id para APIs de loja.
+        // Para APIs de dados de loja que usam main_account_id,
+        // o manual da Shopee especifica que o `shop_id` para a assinatura deve ser 0
+        // se a conta principal estiver acessando todas as lojas.
+        // Se `id` for um main_account_id, a assinatura ainda usa 0 para shop_id.
+        shopIdForSignature = 0; // Usar 0 para shop_id na assinatura quando é main_account_id
     }
 
+    console.log(`[ShopeeOrderAPI:buildSignedShopeeUrl] Parâmetros para assinatura:`); // NOVO LOG 2
+    console.log(`- Path: ${path}`);
+    console.log(`- Partner ID: ${partner_id}`);
+    console.log(`- Timestamp: ${timestamp}`);
+    console.log(`- Access Token (first 5 chars): ${access_token ? access_token.substring(0, 5) + '...' : 'N/A'}`);
+    console.log(`- Shop ID (para assinatura, pode ser 0): ${shopIdForSignature}`);
 
-    // --- CORREÇÃO 2: Passar shopIdForSignature para generateShopeeSignature APENAS se for shop_id ---
-    // A assinatura, conforme o manual, requer shop_id. Se for uma main_account_id que não se mapeia para shop_id,
-    // você precisa verificar como a Shopee trata isso na assinatura.
-    // Por enquanto, vamos assumir que shop_id é sempre o que vai na assinatura para APIs de loja.
     const signature = generateShopeeSignature(path, partner_id, timestamp, access_token, shopIdForSignature);
-
-
+    console.log(`[ShopeeOrderAPI:buildSignedShopeeUrl] Assinatura gerada: ${signature}`); // NOVO LOG 3
 
     // --- CONSTRUÇÃO DA URL ---
     let url = `${SHOPEE_API_HOST_LIVE}${path}?` +
@@ -53,19 +53,14 @@ function buildSignedShopeeUrl(path, access_token, id, idType, additionalParams =
               `&sign=${signature}` +
               `&timestamp=${timestamp}`;
 
-    // --- CORREÇÃO 3: EVITAR DUPLICIDADE DO shop_id na URL ---
-    // Você tinha duas linhas adicionando shop_id ou main_account_id.
-    // Esta é a forma consolidada e mais limpa.
-    if (shopIdForSignature) { // Se determinamos um shop_id para usar (ou seja, idType era 'shop_id')
+    if (shopIdForSignature && idType === 'shop_id') { // Adiciona shop_id apenas se for realmente um shop_id
         url += `&shop_id=${shopIdForSignature}`;
-    } else if (mainAccountIdForUrl) { // Se for main_account_id e deve ir na URL
+    } else if (mainAccountIdForUrl) { // Adiciona main_account_id se for esse o tipo
         url += `&main_account_id=${mainAccountIdForUrl}`;
     }
 
-
     // Adiciona os parâmetros adicionais à URL
     Object.keys(additionalParams).forEach(key => {
-        // Cuidado com o cursor: "" precisa ser encodado.
         if (Array.isArray(additionalParams[key]) || typeof additionalParams[key] === 'object') {
             url += `&${key}=${encodeURIComponent(JSON.stringify(additionalParams[key]))}`;
         } else {
@@ -73,6 +68,7 @@ function buildSignedShopeeUrl(path, access_token, id, idType, additionalParams =
         }
     });
 
+    console.log(`[ShopeeOrderAPI:buildSignedShopeeUrl] URL final construída: ${url}`); // NOVO LOG 4
     return url;
 }
 
@@ -82,21 +78,29 @@ function buildSignedShopeeUrl(path, access_token, id, idType, additionalParams =
  * @returns {Promise<object>} A resposta de dados da API da Shopee.
  */
 async function sendShopeeGetRequest(url) {
-	// --- NOVO LOG AQUI ---
-    console.log(`\n--- [ShopeeOrderAPI] Fazendo requisição GET para Shopee ---`);
-    console.log(`[ShopeeOrderAPI] URL da Requisição: ${url}`);
-    // Para GET, não há body, mas podemos adicionar um log se fosse POST/PUT
+    console.log(`\n--- [ShopeeOrderAPI:sendShopeeGetRequest] Fazendo requisição GET para Shopee ---`); // NOVO LOG 5
+    console.log(`[ShopeeOrderAPI:sendShopeeGetRequest] URL da Requisição: ${url}`);
     console.log(`---------------------------------------------------------\n`);
-    // --- FIM DO NOVO LOG ---
+
     try {
         const response = await axios.get(url, {
             headers: { 'Content-Type': 'application/json' }
         });
+        console.log(`[ShopeeOrderAPI:sendShopeeGetRequest] Resposta recebida da Shopee (Status: ${response.status})`); // NOVO LOG 6
+        // CUIDADO: Se você quiser ver o corpo da resposta completa, descomente a linha abaixo.
+        // Mas pode ser muito grande em logs de produção.
+        // console.log(`[ShopeeOrderAPI:sendShopeeGetRequest] Dados da Resposta: ${JSON.stringify(response.data)}`);
+
+        // Sua lógica atual verifica response.data.error no service, então o retorno aqui é response.data.
+        // Se a Shopee retorna um erro HTTP 200 com "error" no JSON, isso é tratado.
+        // Se for um erro HTTP (4xx, 5xx), o catch abaixo lida com isso.
         return response.data;
     } catch (error) {
-        console.error('[ShopeeOrderAPI] Erro na requisição Shopee:', error.response ? JSON.stringify(error.response.data) : error.message);
+        const errorMessage = error.response ? JSON.stringify(error.response.data) : error.message;
+        const httpStatus = error.response ? error.response.status : 'N/A';
+        console.error(`❌ [ShopeeOrderAPI:sendShopeeGetRequest] Erro na requisição Shopee. Status HTTP: ${httpStatus}. Detalhes: ${errorMessage}`); // NOVO LOG 7
         // Lança um erro com a mensagem da API para ser tratado pela camada de serviço
-        throw new Error(`Falha na API da Shopee: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
+        throw new Error(`Falha na API da Shopee: ${errorMessage}`);
     }
 }
 
@@ -109,6 +113,7 @@ async function sendShopeeGetRequest(url) {
  * @returns {Promise<object>} Dados da lista de pedidos.
  */
 async function getShopeeOrderList(id, idType, access_token, queryParams) {
+    console.log(`[ShopeeOrderAPI:getShopeeOrderList] Chamando get_order_list para ID: ${id}`); // NOVO LOG 8
     const path = "/api/v2/order/get_order_list";
     const url = buildSignedShopeeUrl(path, access_token, id, idType, queryParams);
     return await sendShopeeGetRequest(url);
@@ -123,6 +128,7 @@ async function getShopeeOrderList(id, idType, access_token, queryParams) {
  * @returns {Promise<object>} Dados detalhados dos pedidos.
  */
 async function getShopeeOrderDetail(id, idType, access_token, queryParams) {
+    console.log(`[ShopeeOrderAPI:getShopeeOrderDetail] Chamando get_order_detail para ID: ${id}`); // NOVO LOG 9
     const path = "/api/v2/order/get_order_detail";
     const url = buildSignedShopeeUrl(path, access_token, id, idType, queryParams);
     return await sendShopeeGetRequest(url);

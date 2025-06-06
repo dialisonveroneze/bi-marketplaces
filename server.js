@@ -30,6 +30,7 @@ const { fetchAndSaveShopeeOrders } = require('./src/services/shopeeOrderService'
 // ===>> MOVA ESTA ROTA PARA CÁ, ANTES DO MIDDLEWARE 404 <<===
 // Rota de teste temporária
 app.get('/test-shopee-orders/:clientId', async (req, res) => {
+	console.log(`\n--- [SERVER] Rota /test-shopee-orders/:shopId acionada ---`);
     const clientId = req.params.clientId; // Assumindo que você passa o ID do cliente na URL
     const idType = 'shop_id'; // Ou 'main_account_id' dependendo do seu setup no Supabase
     const id = "316070154"; // <<<<< CONFIRA SE ESTE SHOP_ID ESTÁ CORRETO E CORRESPONDE AO SEU TOKEN NO SUPABASE
@@ -42,12 +43,14 @@ app.get('/test-shopee-orders/:clientId', async (req, res) => {
 
     try {
         const orders = await fetchAndSaveShopeeOrders(id, idType, 'READY_TO_SHIP', 7);
+		console.log(`[SERVER] Processo de busca de pedidos Shopee concluído com sucesso para Shop ID: ${shopId}`);
         res.json({ success: true, message: 'Pedidos buscados e salvos (se houver). Verifique os logs do servidor e o Supabase.', ordersCount: orders.length });
     } catch (error) {
         console.error('❌ Erro na rota de teste de pedidos Shopee:', error);
         res.status(500).json({ success: false, message: 'Erro ao buscar pedidos Shopee', error: error.message });
     }
 });
+
 // ===>> FIM DA ROTA MOVIDA <<===
 
 

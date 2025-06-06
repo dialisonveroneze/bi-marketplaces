@@ -12,10 +12,15 @@ const { getShopeeOrderList, getShopeeOrderDetail } = require('./shopeeOrderAPI')
  * @returns {Promise<Array>} Lista de pedidos brutos obtidos.
  */
 async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP', daysAgo = 7) {
-    console.log(`[shopeeOrderService] Buscando e salvando pedidos para ${idType}: ${id}`);
+    // CORRIGIDO: Usando 'id' em vez de 'shopId' que não está definido aqui.
+    console.log(`\n--- [ShopeeOrderService] Iniciando fetchAndSaveShopeeOrders para ${idType}: ${id} ---`); // Aprimorado
+    console.log(`[ShopeeOrderService] Buscando e salvando pedidos para ${idType}: ${id}`); // Aprimorado
 
     try {
+        console.log(`[ShopeeOrderService] Etapa 1: Tentando obter tokens validados para ${idType}: ${id}...`); // Aprimorado
+
         const { access_token } = await getValidatedShopeeTokens(id, idType);
+        console.log(`[ShopeeOrderService] Etapa 1 Concluída: Tokens obtidos com sucesso. Access Token (primeiros 5): ${access_token.substring(0, 5)}...`); // Aprimorado
 
         const timestamp = Math.floor(Date.now() / 1000);
         const timeFrom = Math.floor((Date.now() - daysAgo * 24 * 60 * 60 * 1000) / 1000);
@@ -30,19 +35,32 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
             time_range_field: 'create_time',
             time_to: timeTo,
         };
+        console.log(`[ShopeeOrderService] Etapa 2: Parâmetros da lista de pedidos preparados: ${JSON.stringify(orderListQueryParams)}`); // Aprimorado
 
         // 1. Chamar a API para obter a lista de pedidos
+        console.log(`[ShopeeOrderService] Etapa 3: Chamando getShopeeOrderList...`); // Aprimorado
         const shopeeResponseList = await getShopeeOrderList(id, idType, access_token, orderListQueryParams);
+        console.log(`[ShopeeOrderService] Etapa 3 Concluída: Resposta de getShopeeOrderList recebida.`); // Aprimorado
 
+        // CUIDADO AQUI: Sua resposta de `getShopeeOrderList` (vindo de shopeeOrderAPI.js)
+        // parece retornar `response.data`, então `shopeeResponseList.error` pode ser `undefined`
+        // se não houver erro. O acesso `shopeeResponseList.response.order_list` também sugere
+        // que o objeto retornado por `getShopeeOrderList` tem uma propriedade `response`.
+        // Precisamos confirmar a estrutura exata do retorno de `getShopeeOrderList` em `shopeeOrderAPI.js`.
+        // POR ENQUANTO, vamos manter como está, mas é um ponto a observar.
         if (shopeeResponseList.error) {
+            console.error(`❌ [ShopeeOrderService] Erro retornado pela API de lista de pedidos: ${shopeeResponseList.message}`);
             throw new Error(shopeeResponseList.message || 'Erro desconhecido ao buscar lista de pedidos.');
         }
-
-        const ordersSummary = shopeeResponseList.response.order_list;
-        console.log(`[shopeeOrderService] ${ordersSummary.length} pedidos encontrados para ${idType}: ${id}.`);
+        
+        // Verifica se shopeeResponseList.response existe antes de tentar acessar order_list
+        const ordersSummary = shopeeResponseList.response && shopeeResponseList.response.order_list
+            ? shopeeResponseList.response.order_list
+            : [];
+        console.log(`[ShopeeOrderService] Etapa 4: ${ordersSummary.length} pedidos encontrados para ${idType}: ${id}.`); // Aprimorado
 
         if (ordersSummary.length === 0) {
-            console.log('[shopeeOrderService] Nenhum pedido novo para processar.');
+            console.log('[ShopeeOrderService] Etapa 4 Concluída: Nenhum pedido novo para processar.'); // Aprimorado
             return [];
         }
 
@@ -52,17 +70,25 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
             order_sn_list: orderSns,
             response_optional_fields: ["item_list", "recipient_address", "logistic_info", "payment_info", "actual_shipping_fee", "total_amount", "currency", "shipping_carrier", "payment_method", "buyer_username", "create_time", "update_time"]
         };
+        console.log(`[ShopeeOrderService] Etapa 5: IDs de pedidos e parâmetros de detalhes preparados. Total de IDs: ${orderSns.length}`); // Aprimorado
 
         // 3. Chamar a API para obter detalhes dos pedidos
+        console.log(`[ShopeeOrderService] Etapa 6: Chamando getShopeeOrderDetail...`); // Aprimorado
         const shopeeResponseDetails = await getShopeeOrderDetail(id, idType, access_token, detailQueryParams);
+        console.log(`[ShopeeOrderService] Etapa 6 Concluída: Resposta de getShopeeOrderDetail recebida.`); // Aprimorado
 
         if (shopeeResponseDetails.error) {
+            console.error(`❌ [ShopeeOrderService] Erro retornado pela API de detalhes de pedidos: ${shopeeResponseDetails.message}`);
             throw new Error(shopeeResponseDetails.message || 'Erro desconhecido ao buscar detalhes dos pedidos.');
         }
 
-        const detailedOrders = shopeeResponseDetails.response.order_list;
+        const detailedOrders = shopeeResponseDetails.response && shopeeResponseDetails.response.order_list
+            ? shopeeResponseDetails.response.order_list
+            : [];
+        console.log(`[ShopeeOrderService] Etapa 7: ${detailedOrders.length} detalhes de pedidos obtidos.`); // Aprimorado
 
         // 4. Inserir/Atualizar os pedidos brutos no Supabase
+        console.log(`[ShopeeOrderService] Etapa 8: Preparando para inserir/atualizar pedidos brutos no Supabase...`); // Aprimorado
         const ordersToInsert = detailedOrders.map(order => ({
             order_sn: order.order_sn,
             shop_id: Number(order.shop_id || id), // Use order.shop_id se disponível, senão o id da requisição
@@ -75,15 +101,18 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
             .upsert(ordersToInsert, { onConflict: 'order_sn' });
 
         if (insertError) {
-            console.error('❌ [shopeeOrderService] Erro ao salvar pedidos brutos no Supabase:', insertError.message);
+            console.error('❌ [ShopeeOrderService] Etapa 8 Falhou: Erro ao salvar pedidos brutos no Supabase:', insertError.message); // Aprimorado
             throw new Error(`Erro ao salvar pedidos brutos no Supabase: ${insertError.message}`);
         }
+        console.log(`[ShopeeOrderService] Etapa 8 Concluída: ${ordersToInsert.length} pedidos brutos salvos/atualizados no Supabase.`); // Aprimorado
 
         return detailedOrders;
 
     } catch (error) {
-        console.error('Erro em fetchAndSaveShopeeOrders:', error.message);
+        console.error('❌ Erro final em fetchAndSaveShopeeOrders:', error.message); // Aprimorado
         throw error;
+    } finally {
+        console.log(`--- [ShopeeOrderService] Finalizando fetchAndSaveShopeeOrders para ${idType}: ${id} ---\n`); // Aprimorado
     }
 }
 
@@ -93,27 +122,32 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
  * @returns {Promise<number>} Número de pedidos normalizados.
  */
 async function normalizeShopeeOrders(clientId = 1) {
-    console.log(`[shopeeOrderService] Iniciando normalização para client_id: ${clientId}`);
+    console.log(`\n--- [ShopeeOrderService] Iniciando normalização para client_id: ${clientId} ---`); // Aprimorado
 
+    console.log(`[ShopeeOrderService] Normalização: Buscando pedidos brutos no Supabase...`); // Aprimorado
     const { data: rawOrders, error: fetchRawError } = await supabase
         .from('orders_raw_shopee')
         .select('*');
 
     if (fetchRawError) {
-        console.error('❌ [NORMALIZER] Erro ao buscar pedidos brutos:', fetchRawError.message);
+        console.error('❌ [ShopeeOrderService] Normalização: Erro ao buscar pedidos brutos:', fetchRawError.message); // Aprimorado
         throw new Error(`Erro ao buscar pedidos brutos para normalização: ${fetchRawError.message}`);
     }
 
     if (!rawOrders || rawOrders.length === 0) {
-        console.log('[NORMALIZER] Nenhuns pedidos brutos para normalizar.');
+        console.log('[ShopeeOrderService] Normalização: Nenhuns pedidos brutos para normalizar.'); // Aprimorado
         return 0;
     }
+    console.log(`[ShopeeOrderService] Normalização: ${rawOrders.length} pedidos brutos encontrados para normalizar.`); // Aprimorado
 
     const normalizedOrders = [];
 
     for (const rawOrder of rawOrders) {
         const originalData = rawOrder.original_data;
-        if (!originalData) continue;
+        if (!originalData) {
+            console.warn(`[ShopeeOrderService] Normalização: Pulando pedido sem 'original_data': ${rawOrder.order_sn}`); // Aprimorado
+            continue;
+        }
 
         try {
             const totalAmount = parseFloat(originalData.total_amount) || 0;
@@ -140,20 +174,24 @@ async function normalizeShopeeOrders(clientId = 1) {
             };
             normalizedOrders.push(normalizedData);
         } catch (parseError) {
-            console.error(`❌ [NORMALIZER] Erro ao normalizar pedido SN: ${rawOrder.order_sn}. Erro: ${parseError.message}`);
+            console.error(`❌ [ShopeeOrderService] Normalização: Erro ao normalizar pedido SN: ${rawOrder.order_sn}. Erro: ${parseError.message}`); // Aprimorado
         }
     }
+    console.log(`[ShopeeOrderService] Normalização: ${normalizedOrders.length} pedidos normalizados processados.`); // Aprimorado
 
     if (normalizedOrders.length > 0) {
+        console.log(`[ShopeeOrderService] Normalização: Salvando pedidos normalizados no Supabase...`); // Aprimorado
         const { error: insertNormalizedError } = await supabase
             .from('orders_detail_normalized')
             .upsert(normalizedOrders, { onConflict: 'order_sn' });
 
         if (insertNormalizedError) {
-            console.error('❌ [NORMALIZER] Erro ao salvar pedidos normalizados no Supabase:', insertNormalizedError.message);
+            console.error('❌ [ShopeeOrderService] Normalização: Erro ao salvar pedidos normalizados no Supabase:', insertNormalizedError.message); // Aprimorado
             throw new Error(`Erro ao salvar pedidos normalizados: ${insertNormalizedError.message}`);
         }
+        console.log(`✅ [ShopeeOrderService] Normalização: ${normalizedOrders.length} pedidos normalizados salvos/atualizados no Supabase.`); // Aprimorado
     }
+    console.log(`--- [ShopeeOrderService] Normalização concluída para client_id: ${clientId} ---\n`); // Aprimorado
     return normalizedOrders.length;
 }
 
