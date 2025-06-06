@@ -237,7 +237,8 @@ async function getValidatedShopeeTokens(id, idType) {
 function generateShopeeSignature(path, partnerId, timestamp, accessToken, shopId) {
     // CORREÇÃO FINAL: INCLUIR shopId NA BASE STRING para GET_ORDER_LIST.
     // É um comportamento peculiar da Shopee para este e alguns outros endpoints de loja.
-    const baseString = `${partnerId}${path}${timestamp}${accessToken}${shopId}${SHOPEE_API_KEY_LIVE}`;
+    //const baseString = `${partnerId}${path}${timestamp}${accessToken}${shopId}${SHOPEE_API_KEY_LIVE}`;
+	const baseString = `${partnerId}${path}${timestamp}${accessToken}${shopId}`;//SUGESTAO DO CHAT GPT
 
     console.log("\n--- DEBUG SIGNATURE START ---");
     console.log("DEBUG SIGNATURE - partnerId:", partnerId);
@@ -253,7 +254,8 @@ function generateShopeeSignature(path, partnerId, timestamp, accessToken, shopId
     console.log("DEBUG SIGNATURE - HASH GERADO LOCALMENTE:", crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex'));
     console.log("--- DEBUG SIGNATURE END ---\n");
 
-    return crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
+    //return crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
+	return crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');//SUGESTAO DO CHAT GPT
 }
 
 module.exports = {
