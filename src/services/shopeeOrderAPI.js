@@ -21,36 +21,49 @@ function buildSignedShopeeUrl(path, access_token, id, idType, additionalParams =
     const timestamp = Math.floor(Date.now() / 1000);
     const partner_id = SHOPEE_PARTNER_ID_LIVE;
 
-    let baseParams = {
-        partner_id: partner_id,
-        timestamp: timestamp,
-        access_token: access_token,
-    };
+    // --- CORREÇÃO 1: Consolidação da Lógica do shopId ---
+    // Você não precisa de 'baseParams' separada para a URL final se já está construindo a URL diretamente.
+    // O shopId para assinatura E para a URL pode ser determinado de forma mais limpa.
+    let shopIdForSignature = null;
+    let mainAccountIdForUrl = null; // Se main_account_id for usado na URL, prepare-o aqui
 
     if (idType === 'shop_id') {
-        baseParams.shop_id = Number(id);
+        shopIdForSignature = Number(id); // Converter para número
     } else if (idType === 'main_account_id') {
-        baseParams.main_account_id = Number(id);
+        mainAccountIdForUrl = Number(id); // Prepare para adicionar na URL se for o caso
+        // Atenção: O manual da Shopee pede shop_id para a maioria das assinaturas.
+        // Se a API que você está chamando realmente usa main_account_id na assinatura,
+        // você precisaria ajustar generateShopeeSignature e a base string dela.
+        // Por ora, focamos em shop_id para APIs de loja.
     }
 
-    const allParams = { ...baseParams, ...additionalParams };
 
-    // Gera a assinatura usando a função existente que já deve lidar com SHOPEE_API_KEY_LIVE
-    // Assumimos que generateShopeeSignature já sabe como acessar SHOPEE_API_KEY_LIVE
-    const signature = generateShopeeSignature(path, allParams);
+    // --- CORREÇÃO 2: Passar shopIdForSignature para generateShopeeSignature APENAS se for shop_id ---
+    // A assinatura, conforme o manual, requer shop_id. Se for uma main_account_id que não se mapeia para shop_id,
+    // você precisa verificar como a Shopee trata isso na assinatura.
+    // Por enquanto, vamos assumir que shop_id é sempre o que vai na assinatura para APIs de loja.
+    const signature = generateShopeeSignature(path, partner_id, timestamp, access_token, shopIdForSignature);
 
+
+    // --- CONSTRUÇÃO DA URL ---
     let url = `${SHOPEE_API_HOST_LIVE}${path}?` +
               `access_token=${access_token}` +
               `&partner_id=${partner_id}` +
               `&sign=${signature}` +
               `&timestamp=${timestamp}`;
 
-    // Adiciona shop_id/main_account_id de volta à URL
-    url += (idType === 'shop_id') ? `&shop_id=${Number(id)}` : `&main_account_id=${Number(id)}`;
+    // --- CORREÇÃO 3: EVITAR DUPLICIDADE DO shop_id na URL ---
+    // Você tinha duas linhas adicionando shop_id ou main_account_id.
+    // Esta é a forma consolidada e mais limpa.
+    if (shopIdForSignature) { // Se determinamos um shop_id para usar (ou seja, idType era 'shop_id')
+        url += `&shop_id=${shopIdForSignature}`;
+    } else if (mainAccountIdForUrl) { // Se for main_account_id e deve ir na URL
+        url += `&main_account_id=${mainAccountIdForUrl}`;
+    }
+
 
     // Adiciona os parâmetros adicionais à URL
     Object.keys(additionalParams).forEach(key => {
-        // Codifica valores que podem ser arrays ou strings com caracteres especiais
         // Cuidado com o cursor: "" precisa ser encodado.
         if (Array.isArray(additionalParams[key]) || typeof additionalParams[key] === 'object') {
             url += `&${key}=${encodeURIComponent(JSON.stringify(additionalParams[key]))}`;

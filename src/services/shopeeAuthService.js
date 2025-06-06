@@ -252,11 +252,13 @@ async function getValidatedShopeeTokens(id, idType) {
 }
 
 // COLE A DEFINIÇÃO COMPLETA DE generateShopeeSignature AQUI:
-function generateShopeeSignature(partner_id, path, timestamp, access_token) {
-    // ... sua lógica de assinatura aqui, usando SHOPEE_API_KEY_LIVE
-    const baseString = `<span class="math-inline">\{partner\_id\}</span>{path}<span class="math-inline">\{timestamp\}</span>{access_token}${SHOPEE_API_KEY_LIVE}`;
+function generateShopeeSignature(path, partnerId, timestamp, accessToken, shopId) {
+    // ESTA ORDEM É CRÍTICA!
+    const baseString = `${partnerId}${path}${timestamp}${accessToken}${shopId}${SHOPEE_API_KEY_LIVE}`;
+    // console.log("SIGNATURE BASE STRING:", baseString); // Adicione este log para depuração
     return crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
 }
+
 
 
 module.exports = {
