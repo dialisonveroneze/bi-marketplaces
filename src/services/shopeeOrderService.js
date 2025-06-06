@@ -81,7 +81,7 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
         console.log(`[ShopeeOrderService] Etapa 8: Preparando para inserir/atualizar pedidos brutos no Supabase...`);
         const ordersToInsert = detailedOrders.map(order => ({
             order_id: order.order_sn,
-            client_id =  1,//shop_id: Number(connectionInfo.shop_id || id),
+            client_id = "1",//shop_id: Number(connectionInfo.shop_id || id),
             //order_id: order,
             received_at: new Date().toISOString(),
 			api_name = ""
