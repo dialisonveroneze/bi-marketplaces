@@ -186,7 +186,7 @@ async function getValidatedShopeeTokens(id, idType) {
     console.log(`\n[AuthService:getValidatedShopeeTokens] Buscando tokens no Supabase para ${idType}: ${id}`);
     const { data: connectionData, error: fetchError } = await supabase
         .from('client_connections')
-        .select('access_token, refresh_token, access_token_expires_at, additional_data->>partner_id, additional_data->>id_shopee, main_account_id')
+        .select('access_token, refresh_token, access_token_expires_at, additional_data->>partner_id, additional_data->>id_shopee, additional_data->>main_account_id')
         .eq(idType === 'shop_id' ? 'additional_data->>id_shopee' : 'client_id', String(id)) // <-- CORREÇÃO
         .single();
 
