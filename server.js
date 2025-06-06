@@ -37,6 +37,32 @@ app.use((err, req, res, next) => {
 });
 console.log('-_teste server passou 500 e vai iniciar servidor--');
 
+// ...rodar order list outras importações e configurações ...
+
+const { fetchAndSaveShopeeOrders } = require('./src/services/shopeeOrderService'); // Importe a função
+
+// Rota de teste temporária
+app.get('/test-shopee-orders/:clientId', async (req, res) => {
+    const clientId = req.params.clientId; // Assumindo que você passa o ID do cliente na URL
+    const idType = 'shop_id'; // Ou 'main_account_id' dependendo do seu setup no Supabase
+    const id = "316070154"; // <<<<< Substitua pelo shop_id real do seu seller/loja de teste
+
+    console.log(`Recebida requisição para testar busca de pedidos para client_id: ${clientId}, shop_id: ${id}`);
+
+    try {
+        // Você pode ajustar os parâmetros conforme necessário para o seu teste
+        const orders = await fetchAndSaveShopeeOrders(id, idType, 'READY_TO_SHIP', 7);
+        res.json({ success: true, message: 'Pedidos buscados e salvos (se houver)', ordersCount: orders.length });
+    } catch (error) {
+        console.error('Erro na rota de teste de pedidos Shopee:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar pedidos Shopee', error: error.message });
+    }
+});
+
+// ... suas outras rotas e app.listen ...
+
+
+
 // Iniciar o servidor
 app.listen(port, () => {
     console.log(`🚀 Servidor rodando na porta ${port}`);
