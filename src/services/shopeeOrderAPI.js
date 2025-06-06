@@ -125,16 +125,28 @@ async function sendShopeeGetRequest(url) {
         const response = await axios.get(url);
         console.log(`✅ [ShopeeOrderAPI:sendShopeeGetRequest] RESPOSTA DA SHOPEE - Status HTTP: ${response.status}`);
         console.log(`✅ [ShopeeOrderAPI:sendShopeeGetRequest] Dados da Resposta (JSON recebido): ${JSON.stringify(response.data)}\n`);
+        
+        // >>>>> CORREÇÃO AQUI: Mover a mensagem de sucesso para o 'try' <<<<<
+        console.log(`--- [ShopeeOrderAPI:sendShopeeGetRequest] FIM - Requisição GET bem-sucedida ---\n`);
+        
         return response.data; // Retorna o objeto completo de dados da resposta
     } catch (error) {
         const errorMessage = error.response ? JSON.stringify(error.response.data) : error.message;
         console.error(`❌ [ShopeeOrderAPI:sendShopeeGetRequest] ERRO na requisição Shopee.`);
         console.error(`❌ [ShopeeOrderAPI:sendShopeeGetRequest] Status HTTP: ${error.response ? error.response.status : 'N/A'}.`);
         console.error(`❌ [ShopeeOrderAPI:sendShopeeGetRequest] Detalhes do Erro: ${errorMessage}\n`);
-        throw new Error(`Falha na API da Shopee: ${errorMessage}`);
-    } finally {
+        
+        // >>>>> CORREÇÃO AQUI: Manter a mensagem de falha no 'catch' <<<<<
         console.log(`--- [ShopeeOrderAPI:sendShopeeGetRequest] FIM - Requisição GET falhou ---\n`);
-    }
+        
+        throw new Error(`Falha na API da Shopee: ${errorMessage}`);
+    } 
+    // >>>>> REMOVER O BLOCO 'finally' COMPLETAMENTE <<<<<
+    // O 'finally' não é o lugar certo para mensagens de sucesso/falha específicas,
+    // pois ele sempre executa.
+    // finally {
+    //     console.log(`--- [ShopeeOrderAPI:sendShopeeGetRequest] FIM - Requisição GET falhou ---\n`);
+    // }
 }
 
 
