@@ -62,7 +62,7 @@ router.get('/shopee/callback', async (req, res) => {
             // Você pode adicionar mais dados no 'additional_data' se precisar
             additional_data: {
                 partner_id: shopeeConfig.SHOPEE_PARTNER_ID_LIVE,
-                original_shop_id_shopee: idToProcess, // Guarda o shop_id original da Shopee
+                shop_id: idToProcess, // Guarda o shop_id original da Shopee
                 // Adicione merchant_id_list e shop_id_list aqui se aplicável
                 ...(tokens.merchant_id_list && { merchant_id_list: tokens.merchant_id_list }),
                 ...(tokens.shop_id_list && { shop_id_list: tokens.shop_id_list })
