@@ -22,8 +22,17 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
 
         console.log(`[ShopeeOrderService] Etapa 1 Concluída: Tokens obtidos com sucesso. Access Token (primeiros 5): ${connectionInfo.access_token.substring(0, 5)}...`);
 
-        const timeFrom = Math.floor((Date.now() - daysAgo * 24 * 60 * 60 * 1000) / 1000);
-        const timeTo = Math.floor(Date.now() / 1000);
+		// 1. Calcular o início e o fim do mês atual
+		const now = new Date();
+		const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1); // Primeiro dia do mês atual
+		const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Último dia do mês atual
+
+		// Convertendo para timestamp Unix (segundos)
+		const timeFrom = Math.floor(startOfMonth.getTime() / 1000);
+		const timeTo = Math.floor(endOfMonth.getTime() / 1000);
+
+       // const timeFrom = Math.floor((Date.now() - daysAgo * 24 * 60 * 60 * 1000) / 1000);
+       // const timeTo = Math.floor(Date.now() / 1000);
 
         const orderListQueryParams = {
             cursor: "", // <-- AQUI! Agora é uma string vazia real.
@@ -86,7 +95,7 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
 			// shop_id: Number(connectionInfo.shop_id || id),
 			// order_id: order, // Esta linha está comentada e parece duplicada com a primeira order_id: order.order_sn
 			received_at: new Date().toISOString(),
-			api_name: "",             
+			api_name: order.platform_name || "Valor Padrão", // Se existisse, pegaria de 'order.platform_name'             
 			raw_data: order, // <--- ADICIONE ESTA LINHA!
         }));
 
