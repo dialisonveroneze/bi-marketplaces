@@ -1,165 +1,121 @@
 // src/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
-const axios = require('axios');
-const crypto = require('crypto');
-// CORREÇÃO AQUI: Caminho para supabaseClient, assumindo src/config/supabaseClient.js
-const supabase = require('../config/supabaseClient');
+const shopeeAuthService = require('../services/shopeeAuthService');
+const supabase = require('../config/supabase');
+const shopeeConfig = require('../config/shopeeConfig');
 
-// Certifique-se de que estas variáveis de ambiente estão definidas no seu ambiente de hospedagem (Render)
-const SHOPEE_PARTNER_ID = process.env.SHOPEE_PARTNER_ID;
-const SHOPEE_PARTNER_KEY = process.env.SHOPEE_PARTNER_KEY;
-const SHOPEE_REDIRECT_URL = process.env.SHOPEE_REDIRECT_URL;
-const SHOPEE_API_BASE_URL = 'https://partner.shopeemobile.com/api/v2';
-const SHOPEE_AUTH_URL = 'https://partner.shopeemobile.com/api/v2/shop/auth_partner'; // URL de autorização
-
-// Array de URLs de base da API para diferentes regiões (se necessário)
-const SHOPEE_API_REGION_URLS = {
-    // Você pode adicionar mais regiões aqui, se precisar
-    'BR': 'https://openplatform.shopee.com.br/api/v2', // Exemplo para o Brasil
-    'GLOBAL': 'https://partner.shopeemobile.com/api/v2', // URL padrão para acesso global
-    'TEST_GLOBAL': 'https://openplatform.sandbox.test-stable.shopee.sg/api/v2' // URL de Sandbox para testes
-};
-
-// --- Função para Geração de Assinatura HMAC-SHA256 ---
-function generateSignature(path, timestamp, accessToken, shopId) {
-    const baseString = `${SHOPEE_PARTNER_ID}${path}${timestamp}${accessToken}${shopId}`;
-    const sign = crypto.createHmac('sha256', SHOPEE_PARTNER_KEY)
-                       .update(baseString)
-                       .digest('hex');
-    return sign;
-}
-
-// --- Rota de Início da Autorização (Passo 1) ---
+// Rota para gerar o link de autorização da Shopee
 router.get('/shopee/authorize', (req, res) => {
-    // Verifique se as variáveis de ambiente cruciais estão definidas
-    if (!SHOPEE_PARTNER_ID || !SHOPEE_REDIRECT_URL || !SHOPEE_PARTNER_KEY) {
-        console.error('❌ ERRO: Variáveis de ambiente da Shopee não configuradas corretamente para autorização.');
-        return res.status(500).send('Erro de configuração do servidor. Variáveis de ambiente da Shopee ausentes.');
+    try {
+        const authLink = shopeeAuthService.generateShopeeAuthLink();
+        console.log(`[AuthRoutes:/shopee/authorize] Redirecionando o usuário para: ${authLink}`);
+        res.redirect(authLink);
+    } catch (error) {
+        console.error('❌ [AuthRoutes:/shopee/authorize] Erro ao gerar link de autorização da Shopee:', error.message);
+        res.status(500).send('Erro ao gerar link de autorização da Shopee.');
     }
-
-    console.log(`--- [AuthRoutes:/shopee/authorize] INÍCIO DA AUTORIZAÇÃO ---`);
-    console.log(`  SHOPEE_PARTNER_ID: ${SHOPEE_PARTNER_ID}`);
-    console.log(`  SHOPEE_REDIRECT_URL: ${SHOPEE_REDIRECT_URL}`);
-    console.log(`  SHOPEE_PARTNER_KEY: ${SHOPEE_PARTNER_KEY ? '******' : 'NÃO CONFIGURADO'}`); // Não logar a chave real
-
-    // URL de redirecionamento para o usuário autorizar sua loja
-    const authUrl = `${SHOPEE_AUTH_URL}?partner_id=${SHOPEE_PARTNER_ID}&redirect=${encodeURIComponent(SHOPEE_REDIRECT_URL)}`;
-    console.log(`  Redirecionando para Shopee Auth URL: ${authUrl}`);
-    console.log(`--- [AuthRoutes:/shopee/authorize] FIM DA AUTORIZAÇÃO ---`);
-    res.redirect(authUrl);
 });
 
-// --- Rota de Callback da Shopee (Passo 2) ---
+// Endpoint de Callback da Shopee
 router.get('/shopee/callback', async (req, res) => {
-    console.log(`--- [AuthRoutes:/shopee/callback] INÍCIO DO CALLBACK ---`);
-    console.log('  Query Params Recebidos:', req.query);
+    const { code, shop_id, main_account_id, error, message } = req.query;
 
-    const { code, shop_id: shopeeShopId, partner_id: shopeePartnerId } = req.query;
+    console.log(`\n--- [AuthRoutes:/shopee/callback] INÍCIO DO CALLBACK ---`);
+    console.log(`  Query Params Recebidos da Shopee: ${JSON.stringify(req.query)}`);
 
-    if (!code || !shopeeShopId || !shopeePartnerId) {
-        console.error('❌ ERRO: Parâmetros essenciais (code, shop_id, partner_id) ausentes no callback da Shopee.');
-        return res.status(400).send('Parâmetros de callback inválidos.');
+    if (error) {
+        console.error(`❌ [AuthRoutes:/shopee/callback] Erro reportado pela Shopee no callback. Erro: ${error}, Mensagem: ${message || 'Nenhuma mensagem adicional.'}`);
+        return res.status(400).json({
+            error: `Erro no callback da Shopee: ${error}`,
+            message: message || 'Por favor, tente novamente ou verifique as configurações da Shopee.',
+            received_query: req.query
+        });
     }
 
-    console.log(`  Processando callback para shop_id: ${shopeeShopId}`);
+    if (!code || (!shop_id && !main_account_id)) {
+        console.error('❌ [AuthRoutes:/shopee/callback] Erro: Parâmetros essenciais ausentes (code, shop_id ou main_account_id).');
+        return res.status(400).json({
+            error: 'Parâmetros de callback ausentes.',
+            message: 'O "code" de autorização e o ID da loja/conta principal são necessários para prosseguir.',
+            received_query: req.query
+        });
+    }
+
+    const idToProcess = shop_id || main_account_id;
+    const idType = shop_id ? 'shop_id' : 'main_account_id'; // 'shop_id' é a chave de conflito para upsert
+
+    console.log(`  Processando callback para ${idType}: ${idToProcess} com code: ${code.substring(0, 5)}...`);
 
     try {
-        const path = '/api/v2/auth/token/get';
-        const timestamp = Math.floor(Date.now() / 1000); // Unix timestamp atual em segundos
+        const tokens = await shopeeAuthService.getAccessTokenFromCode(code, shop_id, main_account_id);
+        const tokenExpiresAt = new Date(Date.now() + tokens.expire_in * 1000).toISOString();
 
-        // O access_token é vazio na chamada inicial /auth/token/get
-        // O shop_id é o shopeeShopId da query
-        const sign = generateSignature(path, timestamp, '', shopeeShopId);
-
-        const requestBody = {
-            code: code,
-            shop_id: parseInt(shopeeShopId), // Converter para número inteiro
-            partner_id: parseInt(shopeePartnerId) // Converter para número inteiro
-        };
-
-        const tokenUrl = `${SHOPEE_API_BASE_URL}${path}`;
-        const queryParams = `partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&sign=${sign}`;
-        const finalUrl = `${tokenUrl}?${queryParams}`;
-
-        console.log(`  Corpo da Requisição (JSON enviado): ${JSON.stringify(requestBody)}`);
-        console.log(`  Parâmetros para Assinatura (baseString): ${SHOPEE_PARTNER_ID}${path}${timestamp}${''}${shopeeShopId}`);
-        console.log(`  Assinatura Gerada (sign): ${sign}`);
-
-        console.log(`--- [AuthService:getAccessTokenFromCode] INÍCIO DA REQUISIÇÃO ---`);
-        const tokenResponse = await axios.post(finalUrl, requestBody, {
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        console.log(`--- [AuthService:getAccessTokenFromCode] RESPOSTA DA SHOPEE ---`);
-        console.log(`  Status HTTP: ${tokenResponse.status}`);
-        console.log(`  Dados da Resposta (JSON recebido): ${JSON.stringify(tokenResponse.data)}`);
-        console.log(`--- [AuthService:getAccessTokenFromCode] FIM DA REQUISIÇÃO ---`);
-
-        const { access_token, refresh_token, expire_in, error, message, request_id } = tokenResponse.data;
-
-        if (error) {
-            console.error(`❌ Erro na resposta do token da Shopee: ${error} - ${message} (Request ID: ${request_id})`);
-            return res.status(500).send(`Erro ao obter tokens da Shopee: ${message}`);
-        }
-
-        if (!access_token || !refresh_token) {
-            console.error('❌ ERRO: Access Token ou Refresh Token não recebidos da Shopee.');
-            return res.status(500).send('Não foi possível obter os tokens de acesso da Shopee.');
-        }
-
-        // Calcular a data de expiração do access token
-        const accessTokenExpiresAt = new Date(Date.now() + expire_in * 1000); // expire_in está em segundos
-
-        // Dados para upsert no Supabase
+        // Mapeia os dados da Shopee para o schema da tabela `client_connections`
         const upsertData = {
-            client_id: parseInt(shopeeShopId), // Usar o shop_id como client_id para consistência
-            connection_name: `Shopee Shop ${shopeeShopId}`,
-            access_token: access_token,
-            refresh_token: refresh_token,
-            access_token_expires_at: accessTokenExpiresAt.toISOString(), // Salvar como ISO string
-            updated_at: new Date().toISOString(),
-            // Guardar dados adicionais relevantes, como partner_id e o shop_id original (string)
+            client_id: 1,//Number(idToProcess), // Mapeia shop_id para client_id, que é a PK ou UNIQUE
+            connection_name: `Shopee Shop ${idToProcess}`, // Exemplo: um nome para a conexão
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            access_token_expires_at: tokenExpiresAt, // Mapeia para access_token_expires_at
+            updated_at: new Date().toISOString(), // Mapeia para updated_at
+            // Você pode adicionar mais dados no 'additional_data' se precisar
             additional_data: {
-                partner_id: parseInt(shopeePartnerId),
-                original_shop_id_shopee: shopeeShopId
+                partner_id: shopeeConfig.SHOPEE_PARTNER_ID_LIVE,
+                original_shop_id_shopee: idToProcess, // Guarda o shop_id original da Shopee
+                // Adicione merchant_id_list e shop_id_list aqui se aplicável
+                ...(tokens.merchant_id_list && { merchant_id_list: tokens.merchant_id_list }),
+                ...(tokens.shop_id_list && { shop_id_list: tokens.shop_id_list })
             }
         };
+
+        // Verifica se é uma inserção (se o 'id' não existir) e gera um novo 'id' se necessário
+        // (Apenas se 'id' for SERIAL/IDENTITY. Se for gerado automaticamente pelo DB, não precisa).
+        // Se 'id' for auto-incrementado, não inclua ele no upsertData inicial.
+        // Se você usa 'client_id' como PK/UNIQUE, o 'id' auto-incrementado é secundário.
+        // Pelo seu schema, 'id' é `number` e `integer`, e `client_id` é `OptionalType number`,
+        // mas é o `client_id` que faz sentido para o `onConflict`.
+        // Vamos presumir que `client_id` é a chave única para upsert.
 
         console.log(`  Dados para upsert na tabela 'client_connections': ${JSON.stringify(upsertData)}`);
-        console.log(`  Chave de Conflito para Upsert no Supabase: 'client_id'`);
+        console.log(`  Chave de Conflito para Upsert no Supabase: 'client_id'`); // Usamos client_id como chave de conflito
 
-        // Realizar upsert no Supabase
+        // Salva ou atualiza os tokens e informações no Supabase na tabela CORRETA
         const { data: upsertedData, error: upsertError } = await supabase
-            .from('client_connections')
+            .from('client_connections') // <-- NOME DA TABELA CORRIGIDO!
             .upsert(upsertData, { onConflict: 'client_id' }) // Chave de conflito deve ser 'client_id'
             .select(); // Adicione .select() para retornar os dados inseridos/atualizados
 
         if (upsertError) {
-            console.error('❌ [AuthRoutes:/shopee/callback] Erro ao salvar/atualizar tokens no Supabase:', upsertError.message);
-            return res.status(500).send(`Erro ao salvar tokens no banco de dados: ${upsertError.message}`);
+            const errorMessageSupabase = upsertError.message || JSON.IFY(upsertError);
+            console.error('❌ [AuthRoutes:/shopee/callback] Erro ao salvar/atualizar tokens no Supabase:', errorMessageSupabase);
+            return res.status(500).json({ error: 'Erro ao salvar tokens no Supabase', details: errorMessageSupabase });
+        } else {
+            console.log(`✅ [AuthRoutes:/shopee/callback] Tokens salvos/atualizados no Supabase para ${idType}: ${idToProcess}.`);
+            console.log(`  Dados retornados pelo upsert: ${JSON.stringify(upsertedData)}`);
         }
 
-        console.log(`✅ [AuthRoutes:/shopee/callback] Tokens salvos/atualizados no Supabase para shop_id: ${shopeeShopId}.`);
-        console.log(`  Dados retornados pelo upsert: ${JSON.stringify(upsertedData)}`);
-
-        // Resposta de sucesso para o cliente
-        res.status(200).json({
+        const successResponse = {
             message: 'Access Token e Refresh Token obtidos e salvos no banco de dados com sucesso! Copie os valores abaixo para testes manuais.',
-            shop_id: shopeeShopId,
-            accessToken: access_token,
-            refreshToken: refresh_token,
-            expiresIn: expire_in
-        });
+            [idType]: idToProcess,
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+            expiresIn: tokens.expire_in,
+            ...(tokens.merchant_id_list && { merchantIdList: tokens.merchant_id_list }),
+            ...(tokens.shop_id_list && { shopIdList: tokens.shop_id_list })
+        };
+        console.log(`  Resposta de Sucesso Enviada para o Cliente: ${JSON.stringify(successResponse)}`);
+        res.status(200).json(successResponse);
 
     } catch (error) {
         console.error('❌ [AuthRoutes:/shopee/callback] Erro no fluxo de callback da Shopee:', error.message);
-        // Em caso de erro na requisição HTTP ou outro erro, envie uma resposta de erro.
-        res.status(500).send(`Erro interno do servidor durante o callback da Shopee: ${error.message}`);
+        res.status(500).json({
+            error: `Erro ao processar callback da Shopee: ${error.message}`,
+            details: error.response ? JSON.stringify(error.response.data) : error.message,
+            received_query: req.query
+        });
     } finally {
-        console.log(`--- [AuthRoutes:/shopee/callback] FIM DO CALLBACK ---`);
+        console.log(`--- [AuthRoutes:/shopee/callback] FIM DO CALLBACK ---\n`);
     }
 });
 
