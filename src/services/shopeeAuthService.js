@@ -12,27 +12,17 @@ const {
     SHOPEE_REDIRECT_URL_LIVE
 } = shopeeConfig;
 
-/**
- * Gera o link de autorização da Shopee para o lojista iniciar o processo OAuth.
- * @returns {string} A URL de autorização para a qual o usuário deve ser redirecionado.
- */
 function generateShopeeAuthLink() {
-    const timest = Math.floor(Date.now() / 1000); // Timestamp em segundos
+    const timest = Math.floor(Date.now() / 1000);
     const path = "/api/v2/shop/auth_partner";
-
-    // A string base para a assinatura é composta por: Partner ID + Path da API + Timestamp
     const tmpBaseString = `${SHOPEE_PARTNER_ID_LIVE}${path}${timest}`;
-
-    // Gera a assinatura usando HMAC-SHA256 com a API Key como segredo
     const sign = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE)
                         .update(tmpBaseString)
-                        .digest('hex'); // Formato hexadecimal
-
-    // Constrói a URL de autorização com todos os parâmetros necessários
+                        .digest('hex');
     const url = (
         `${SHOPEE_AUTH_HOST_LIVE}${path}` +
         `?partner_id=${SHOPEE_PARTNER_ID_LIVE}` +
-        `&redirect=${encodeURIComponent(SHOPEE_REDIRECT_URL_LIVE)}` + // URL de callback da sua aplicação
+        `&redirect=${encodeURIComponent(SHOPEE_REDIRECT_URL_LIVE)}` +
         `&timestamp=${timest}` +
         `&sign=${sign}`
     );
@@ -40,14 +30,6 @@ function generateShopeeAuthLink() {
     return url;
 }
 
-/**
- * Obtém o access_token e refresh_token da Shopee usando o "code" fornecido
- * após a autorização do lojista.
- * @param {string} code O código de autorização obtido da Shopee.
- * @param {string} [shopId] O ID da loja, se for uma autorização de loja individual.
- * @param {string} [mainAccountId] O ID da conta principal, se for uma autorização de parceiro.
- * @returns {Promise<object>} Um objeto contendo access_token, refresh_token, expire_in e listas de IDs.
- */
 async function getAccessTokenFromCode(code, shopId, mainAccountId) {
     const path = "/api/v2/auth/token/get";
     const timestamp = Math.floor(Date.now() / 1000);
@@ -89,14 +71,13 @@ async function getAccessTokenFromCode(code, shopId, mainAccountId) {
         return {
             access_token: response.data.access_token,
             refresh_token: response.data.refresh_token,
-            expire_in: response.data.expire_in, // Tempo de expiração em segundos
-            merchant_id_list: response.data.merchant_id_list, // Para contas de parceiro
-            shop_id_list: response.data.shop_id_list // Para contas de parceiro
+            expire_in: response.data.expire_in,
+            merchant_id_list: response.data.merchant_id_list,
+            shop_id_list: response.data.shop_id_list
         };
     } catch (error) {
         const errorMessage = error.response ? JSON.stringify(error.response.data) : error.message;
         console.error(`❌ [AuthService:getAccessTokenFromCode] Erro na requisição: ${errorMessage}`);
-        // Detalhes adicionais do erro HTTP se disponíveis
         if (error.response) {
             console.error(`❌ [AuthService:getAccessTokenFromCode] HTTP Status Erro: ${error.response.status}`);
             console.error(`❌ [AuthService:getAccessTokenFromCode] Dados do Erro Recebido: ${JSON.stringify(error.response.data)}`);
@@ -107,15 +88,8 @@ async function getAccessTokenFromCode(code, shopId, mainAccountId) {
     }
 }
 
-/**
- * Atualiza o access_token usando o refresh_token, quando o access_token existente expira.
- * @param {string} refreshToken O refresh token atual.
- * @param {number} [shopId] O ID da loja (se for uma conta de loja).
- * @param {number} [mainAccountId] O ID da conta principal (se for uma conta principal).
- * @returns {Promise<object>} Um objeto contendo o novo access_token, refresh_token e expire_in.
- */
 async function refreshShopeeAccessToken(refreshToken, shopId, mainAccountId) {
-    const path = "/api/v2/auth/access_token/get"; // Endpoint para refresh
+    const path = "/api/v2/auth/access_token/get";
     const timestamp = Math.floor(Date.now() / 1000);
 
     let requestBody = {
@@ -172,14 +146,6 @@ async function refreshShopeeAccessToken(refreshToken, shopId, mainAccountId) {
     }
 }
 
-/**
- * Busca os tokens de acesso e refresh do Supabase para um dado shop_id ou main_account_id.
- * Se o token estiver expirado, tenta refrescá-lo e o atualiza no Supabase.
- * @param {string} id O ID da loja ou conta principal.
- * @param {string} idType 'shop_id' ou 'main_account_id'.
- * @returns {Promise<object>} Um objeto contendo access_token, refresh_token e partner_id.
- * @throws {Error} Se os tokens não forem encontrados ou falharem ao serem refrescados.
- */
 async function getValidatedShopeeTokens(id, idType) {
     console.log(`\n[AuthService:getValidatedShopeeTokens] Buscando tokens no Supabase para ${idType}: ${id}`);
     let queryColumn;
@@ -202,7 +168,7 @@ async function getValidatedShopeeTokens(id, idType) {
         .eq(queryColumn, queryValue)
         .single();
 
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 é "No rows found"
+    if (fetchError && fetchError.code !== 'PGRST116') {
         console.error(`❌ [AuthService:getValidatedShopeeTokens] Erro ao buscar tokens no Supabase para ${idType}: ${id}. Detalhes: ${fetchError.message}`);
         throw new Error(`Erro ao buscar tokens no Supabase: ${fetchError.message}`);
     }
@@ -227,7 +193,7 @@ async function getValidatedShopeeTokens(id, idType) {
     console.log(`  Expira em: ${expiresAt.toISOString()} (Agora: ${now.toISOString()})`);
 
 
-    const expirationBuffer = 5 * 60 * 1000; // 5 minutos em milissegundos
+    const expirationBuffer = 5 * 60 * 1000;
     if (now.getTime() >= (expiresAt.getTime() - expirationBuffer)) {
         console.log(`🔄 [AuthService:getValidatedShopeeTokens] Access Token para ${idType}: ${id} expirado ou próximo de expirar. Tentando refrescar...`);
         try {
@@ -268,22 +234,20 @@ async function getValidatedShopeeTokens(id, idType) {
     return { access_token: accessToken, refresh_token: refreshToken, partner_id: partnerId, shop_id: sup_shop_id, main_account_id: sup_main_account_id };
 }
 
-// A função generateShopeeSignature DEVE ESTAR AQUI (uma única vez)
 function generateShopeeSignature(path, partnerId, timestamp, accessToken, shopId) {
-    // AQUI ESTÁ A MUDANÇA PRINCIPAL: REMOVEMOS O shopId DA BASE STRING
-    const baseString = `${partnerId}${path}${timestamp}${accessToken}${SHOPEE_API_KEY_LIVE}`;
+    // CORREÇÃO: INCLUIR shopId na baseString para APIs de Loja como get_order_list
+    const baseString = `${partnerId}${path}${timestamp}${accessToken}${shopId}${SHOPEE_API_KEY_LIVE}`;
 
     console.log("\n--- DEBUG SIGNATURE START ---");
     console.log("DEBUG SIGNATURE - partnerId:", partnerId);
     console.log("DEBUG SIGNATURE - path:", path);
     console.log("DEBUG SIGNATURE - timestamp:", timestamp);
     console.log("DEBUG SIGNATURE - accessToken (first 5 chars):", accessToken ? accessToken.substring(0, 5) + '...' : 'N/A');
-    // REMOVEMOS O LOG DO shopId DAQUI PARA CLAREZA, pois ele não faz parte da baseString
-    // console.log("DEBUG SIGNATURE - shopId:", shopId); 
+    console.log("DEBUG SIGNATURE - shopId:", shopId); // RE-ADICIONADO O LOG DO shopId, pois ele faz parte da baseString
     console.log("DEBUG SIGNATURE - Partner Key (first 5 and last 5 chars):", 
         SHOPEE_API_KEY_LIVE ? SHOPEE_API_KEY_LIVE.substring(0, 5) + '...' + SHOPEE_API_KEY_LIVE.substring(SHOPEE_API_KEY_LIVE.length - 5) : 'N/A'
     );
-    console.log("DEBUG SIGNATURE - BASE STRING COMPLETA PARA ASSINATURA (sem shopId):", baseString); // MUDAMOS O NOME DO LOG
+    console.log("DEBUG SIGNATURE - BASE STRING COMPLETA PARA ASSINATURA (com shopId):", baseString); // MUDAMOS O NOME DO LOG
     console.log("DEBUG SIGNATURE - HASH GERADO LOCALMENTE:", crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex'));
     console.log("--- DEBUG SIGNATURE END ---\n");
 
