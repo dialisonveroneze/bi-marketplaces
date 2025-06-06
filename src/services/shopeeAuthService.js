@@ -254,7 +254,8 @@ async function getValidatedShopeeTokens(id, idType) {
 // A função generateShopeeSignature DEVE ESTAR AQUI (uma única vez)
 function generateShopeeSignature(path, partnerId, timestamp, accessToken, shopId) {
     // CORRIGIR ESTA LINHA: Remover as tags <span>. Usar APENAS ${variavel}
- const baseString = `<span class="math-inline">\{partnerId\}</span>{path}<span class="math-inline">\{timestamp\}</span>{accessToken}<span class="math-inline">\{shopId\}</span>{SHOPEE_API_KEY_LIVE}`;
+    //const baseString = `<span class="math-inline">\{partnerId\}</span>{path}<span class="math-inline">\{timestamp\}</span>{accessToken}<span class="math-inline">\{shopId\}</span>{SHOPEE_API_KEY_LIVE}`;
+    const baseString = `${partnerId}${path}${timestamp}${accessToken}${shopId}${SHOPEE_API_KEY_LIVE}`;
 
     // ESTES LOGS DEVERIAM ESTAR AQUI E APARECER NOS LOGS DO RENDER
     console.log("DEBUG SIGNATURE - partnerId:", partnerId);
