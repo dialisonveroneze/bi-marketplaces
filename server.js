@@ -24,7 +24,35 @@ app.get('/', (req, res) => {
 });
 console.log('-_teste para ver se seguiu dentro do server--');
 
+// Importação da função de serviço de pedidos (mantém aqui)
+const { fetchAndSaveShopeeOrders } = require('./src/services/shopeeOrderService');
+
+// ===>> MOVA ESTA ROTA PARA CÁ, ANTES DO MIDDLEWARE 404 <<===
+// Rota de teste temporária
+app.get('/test-shopee-orders/:clientId', async (req, res) => {
+    const clientId = req.params.clientId; // Assumindo que você passa o ID do cliente na URL
+    const idType = 'shop_id'; // Ou 'main_account_id' dependendo do seu setup no Supabase
+    const id = "316070154"; // <<<<< CONFIRA SE ESTE SHOP_ID ESTÁ CORRETO E CORRESPONDE AO SEU TOKEN NO SUPABASE
+
+    console.log(`Recebida requisição para testar busca de pedidos para client_id: ${clientId}, shop_id: ${id}`);
+
+    if (!id || id === "SEU_SHOP_ID_AQUI") { // Adicionei uma verificação para o shop_id
+        return res.status(400).json({ success: false, message: "Erro: 'shopIdToTest' não configurado ou inválido na rota /test-shopee-orders." });
+    }
+
+    try {
+        const orders = await fetchAndSaveShopeeOrders(id, idType, 'READY_TO_SHIP', 7);
+        res.json({ success: true, message: 'Pedidos buscados e salvos (se houver). Verifique os logs do servidor e o Supabase.', ordersCount: orders.length });
+    } catch (error) {
+        console.error('❌ Erro na rota de teste de pedidos Shopee:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar pedidos Shopee', error: error.message });
+    }
+});
+// ===>> FIM DA ROTA MOVIDA <<===
+
+
 // Middleware para lidar com rotas não encontradas (404)
+// ESTE DEVE SER O ÚLTIMO MIDDLEWARE DE ROTA ANTES DO TRATAMENTO DE ERROS GENÉRICO
 app.use((req, res, next) => {
     res.status(404).send('Desculpe, a rota que você procura não foi encontrada.');
 });
@@ -36,32 +64,6 @@ app.use((err, req, res, next) => {
     res.status(500).send('Algo deu errado no servidor!');
 });
 console.log('-_teste server passou 500 e vai iniciar servidor--');
-
-// ...rodar order list outras importações e configurações ...
-
-const { fetchAndSaveShopeeOrders } = require('./src/services/shopeeOrderService'); // Importe a função
-
-// Rota de teste temporária
-app.get('/test-shopee-orders/:clientId', async (req, res) => {
-    const clientId = req.params.clientId; // Assumindo que você passa o ID do cliente na URL
-    const idType = 'shop_id'; // Ou 'main_account_id' dependendo do seu setup no Supabase
-    const id = "316070154"; // <<<<< Substitua pelo shop_id real do seu seller/loja de teste
-
-    console.log(`Recebida requisição para testar busca de pedidos para client_id: ${clientId}, shop_id: ${id}`);
-
-    try {
-        // Você pode ajustar os parâmetros conforme necessário para o seu teste
-        const orders = await fetchAndSaveShopeeOrders(id, idType, 'READY_TO_SHIP', 7);
-        res.json({ success: true, message: 'Pedidos buscados e salvos (se houver)', ordersCount: orders.length });
-    } catch (error) {
-        console.error('Erro na rota de teste de pedidos Shopee:', error);
-        res.status(500).json({ success: false, message: 'Erro ao buscar pedidos Shopee', error: error.message });
-    }
-});
-
-// ... suas outras rotas e app.listen ...
-
-
 
 // Iniciar o servidor
 app.listen(port, () => {
