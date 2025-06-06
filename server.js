@@ -36,11 +36,11 @@ app.get('/test-shopee-orders/:clientId', async (req, res) => {
     const id = "316070154"; // <<<<< CONFIRA SE ESTE SHOP_ID ESTÁ CORRETO E CORRESPONDE AO SEU TOKEN NO SUPABASE
 
     console.log(`Recebida requisição para testar busca de pedidos para client_id: ${clientId}, shop_id: ${id}`);
-
+/*
     if (!id || id === "316070154") { // Adicionei uma verificação para o shop_id
         return res.status(400).json({ success: false, message: "Erro: 'shopIdToTest' não configurado ou inválido na rota /test-shopee-orders." });
     }
-
+*/
     try {
         const orders = await fetchAndSaveShopeeOrders(id, idType, 'READY_TO_SHIP', 7);
 		console.log(`[SERVER] Processo de busca de pedidos Shopee concluído com sucesso para Shop ID: ${id}`);
