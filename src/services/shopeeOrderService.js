@@ -86,7 +86,8 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
 			// shop_id: Number(connectionInfo.shop_id || id),
 			// order_id: order, // Esta linha está comentada e parece duplicada com a primeira order_id: order.order_sn
 			received_at: new Date().toISOString(),
-			api_name: "",             // <-- CORREÇÃO AQUI: de '=' para ':'
+			api_name: "",             
+			raw_data: order, // <--- ADICIONE ESTA LINHA!
         }));
 
         const { error: insertError } = await supabase
