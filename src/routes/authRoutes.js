@@ -53,7 +53,7 @@ router.get('/shopee/callback', async (req, res) => {
 
         // Mapeia os dados da Shopee para o schema da tabela `client_connections`
         const upsertData = {
-            client_id: Number(idToProcess), // Mapeia shop_id para client_id, que é a PK ou UNIQUE
+            client_id: 1,//Number(idToProcess), // Mapeia shop_id para client_id, que é a PK ou UNIQUE
             connection_name: `Shopee Shop ${idToProcess}`, // Exemplo: um nome para a conexão
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
