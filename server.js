@@ -43,7 +43,7 @@ app.get('/test-shopee-orders/:clientId', async (req, res) => {
 
     try {
         const orders = await fetchAndSaveShopeeOrders(id, idType, 'READY_TO_SHIP', 7);
-		console.log(`[SERVER] Processo de busca de pedidos Shopee concluído com sucesso para Shop ID: ${shopId}`);
+		console.log(`[SERVER] Processo de busca de pedidos Shopee concluído com sucesso para Shop ID: ${id}`);
         res.json({ success: true, message: 'Pedidos buscados e salvos (se houver). Verifique os logs do servidor e o Supabase.', ordersCount: orders.length });
     } catch (error) {
         console.error('❌ Erro na rota de teste de pedidos Shopee:', error);
