@@ -91,7 +91,7 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
 
         const { error: insertError } = await supabase
             .from('orders_raw_shopee')
-            .upsert(ordersToInsert, { onConflict: 'order_sn' });
+            .upsert(ordersToInsert, { onConflict: 'order_id' });
 
         if (insertError) {
             console.error('❌ [ShopeeOrderService] Etapa 8 Falhou: Erro ao salvar pedidos brutos no Supabase:', insertError.message);
