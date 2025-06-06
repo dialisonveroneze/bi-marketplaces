@@ -186,10 +186,12 @@ async function getValidatedShopeeTokens(id, idType) {
     console.log(`\n[AuthService:getValidatedShopeeTokens] Buscando tokens no Supabase para ${idType}: ${id}`);
     const { data: connectionData, error: fetchError } = await supabase
         .from('client_connections')
-        //.select('access_token, refresh_token, access_token_expires_at, additional_data->>partner_id, additional_data->>shop_id, additional_data->>main_account_id')
-        .select('access_token, refresh_token, access_token_expires_at, additional_data->>partner_id, client_id, additional_data->>main_account_id')
-        .eq(idType === 'client_id' ? 'client_id' : 'client_id', String(id)) // <-- CORREÇÃO
-        .single();
+        // AQUI: Mude 'additional_data->>id_shopee' para 'additional_data->>shop_id'
+        // E certifique-se que 'main_account_id' foi removido se não for uma coluna de topo nível
+        .select('access_token, refresh_token, access_token_expires_at, additional_data->>partner_id, additional_data->>shop_id, client_id')
+        // AQUI: Mude 'additional_data->>id_shopee' para 'additional_data->>shop_id'
+        .eq(idType === 'shop_id' ? 'additional_data->>shop_id' : 'client_id', String(id))
+        .single();		
 
     if (fetchError || !connectionData) {
         console.error(`❌ [AuthService:getValidatedShopeeTokens] Erro ao buscar tokens no Supabase para ${idType}: ${id}. Detalhes: ${fetchError ? fetchError.message : 'Tokens não encontrados.'}`);
