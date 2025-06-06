@@ -36,7 +36,7 @@ async function getAccessTokenFromCode(code, shopId, mainAccountId) {
 
     let requestBody = {
         code: code,
-        partner_id: SHOPEE_PARTNER_ID_LIVE
+        partner_id: SHOPEE_PARTENER_ID_LIVE // Corrigido typo
     };
 
     if (shopId) {
@@ -235,22 +235,21 @@ async function getValidatedShopeeTokens(id, idType) {
 }
 
 function generateShopeeSignature(path, partnerId, timestamp, accessToken, shopId) {
-    // AQUI ESTÁ A CORREÇÃO FINAL: REMOVE O shopId DA BASE STRING PARA GET_ORDER_LIST
-    // Ele é um parâmetro da URL, mas NÃO da string de assinatura para esta API.
-    const baseString = `${partnerId}${path}${timestamp}${accessToken}${SHOPEE_API_KEY_LIVE}`;
+    // CORREÇÃO FINAL: INCLUIR shopId NA BASE STRING para GET_ORDER_LIST.
+    // É um comportamento peculiar da Shopee para este e alguns outros endpoints de loja.
+    const baseString = `${partnerId}${path}${timestamp}${accessToken}${shopId}${SHOPEE_API_KEY_LIVE}`;
 
     console.log("\n--- DEBUG SIGNATURE START ---");
     console.log("DEBUG SIGNATURE - partnerId:", partnerId);
     console.log("DEBUG SIGNATURE - path:", path);
     console.log("DEBUG SIGNATURE - timestamp:", timestamp);
     console.log("DEBUG SIGNATURE - accessToken (first 5 chars):", accessToken ? accessToken.substring(0, 5) + '...' : 'N/A');
-    // Removido o log do shopId da base string, pois ele não é mais parte dela
-    // console.log("DEBUG SIGNATURE - shopId:", shopId); 
+    console.log("DEBUG SIGNATURE - shopId:", shopId); // Re-adicionado o log do shopId, pois ele é parte da baseString
     console.log("DEBUG SIGNATURE - Partner Key (first 5 and last 5 chars):", 
         SHOPEE_API_KEY_LIVE ? SHOPEE_API_KEY_LIVE.substring(0, 5) + '...' + SHOPEE_API_KEY_LIVE.substring(SHOPEE_API_KEY_LIVE.length - 5) : 'N/A'
     );
-    // MUDAMOS O NOME DO LOG PARA REFLETIR QUE O shopId NÃO ESTÁ NA BASE STRING
-    console.log("DEBUG SIGNATURE - BASE STRING COMPLETA PARA ASSINATURA (SEM shopId):", baseString); 
+    // Mudamos o nome do log para refletir que o shopId ESTÁ na base string
+    console.log("DEBUG SIGNATURE - BASE STRING COMPLETA PARA ASSINATURA (COM shopId):", baseString); 
     console.log("DEBUG SIGNATURE - HASH GERADO LOCALMENTE:", crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex'));
     console.log("--- DEBUG SIGNATURE END ---\n");
 
