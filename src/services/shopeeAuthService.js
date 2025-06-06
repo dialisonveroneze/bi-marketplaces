@@ -253,8 +253,7 @@ async function getValidatedShopeeTokens(id, idType) {
 
 // A função generateShopeeSignature DEVE ESTAR AQUI (uma única vez)
 function generateShopeeSignature(path, partnerId, timestamp, accessToken, shopId) {
-    // Esta é a linha CRÍTICA. A ordem dos elementos é vital.
-    // Use crases (backticks `) para template literals, e as variáveis DENTRO de ${}
+    // CORRIGIR ESTA LINHA: Remover as tags <span>. Usar APENAS ${variavel}
     const baseString = `<span class="math-inline">\{partnerId\}</span>{path}<span class="math-inline">\{timestamp\}</span>{accessToken}<span class="math-inline">\{shopId\}</span>{SHOPEE_API_KEY_LIVE}`;
 
     // ESTES LOGS DEVERIAM ESTAR AQUI E APARECER NOS LOGS DO RENDER
@@ -263,7 +262,7 @@ function generateShopeeSignature(path, partnerId, timestamp, accessToken, shopId
     console.log("DEBUG SIGNATURE - timestamp:", timestamp);
     console.log("DEBUG SIGNATURE - accessToken (first 5 chars):", accessToken ? accessToken.substring(0, 5) + '...' : 'N/A');
     console.log("DEBUG SIGNATURE - shopId:", shopId);
-    console.log("DEBUG SIGNATURE - BASE STRING COMPLETA PARA ASSINATURA:", baseString);
+    console.log("DEBUG SIGNATURE - BASE STRING COMPLETA PARA ASSINATURA:", baseString); // ESTE É O LOG CHAVE!
     console.log("DEBUG SIGNATURE - HASH GERADO LOCALMENTE:", crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex'));
 
     return crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE).update(baseString).digest('hex');
