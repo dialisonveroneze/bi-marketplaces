@@ -36,7 +36,7 @@ async function getAccessTokenFromCode(code, shopId, mainAccountId) {
 
     let requestBody = {
         code: code,
-        partner_id: SHOPEE_PARTENER_ID_LIVE // Corrigido typo
+        partner_id: SHOPEE_PARTNER_ID_LIVE // Corrigido typo
     };
 
     if (shopId) {
