@@ -83,7 +83,7 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
             order_id: order.order_sn,
             shop_id: Number(connectionInfo.shop_id || id),
            // original_data: order,
-            retrieved_at: new Date().toISOString()
+            received_at: new Date().toISOString()
         }));
 
         const { error: insertError } = await supabase
