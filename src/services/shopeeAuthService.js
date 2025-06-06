@@ -256,4 +256,5 @@ module.exports = {
     getAccessTokenFromCode,
     refreshShopeeAccessToken,
     getValidatedShopeeTokens,
+	generateShopeeSignature, // <<< ADICIONE ESTA LINHA AQUI
 };
