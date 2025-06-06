@@ -1,9 +1,11 @@
 // src/services/shopeeOrderService.js
 const axios = require('axios');
 const crypto = require('crypto');
-const supabase = require('../config/supabaseClient'); // Assumindo que você tem isso configurado
+// CORREÇÃO AQUI: Caminho para supabaseClient, assumindo src/config/supabaseClient.js
+const supabase = require('../config/supabaseClient'); 
 
-const SHOPEE_PARTNER_ID = process.env.SHOPEE_PARTENER_ID; // CORRIGIDO: typo
+// CORREÇÃO AQUI: Typo de 'SHOPEE_PARTENER_ID' para 'SHOPEE_PARTNER_ID'
+const SHOPEE_PARTNER_ID = process.env.SHOPEE_PARTNER_ID; 
 const SHOPEE_PARTNER_KEY = process.env.SHOPEE_PARTNER_KEY;
 // URL da API de Pedidos para o Brasil (ou conforme sua necessidade)
 const SHOPEE_ORDER_API_BASE_URL = 'https://openplatform.shopee.com.br/api/v2/order';

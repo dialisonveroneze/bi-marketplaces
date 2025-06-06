@@ -10,7 +10,7 @@ router.get('/orders/detail/:dbClientId', async (req, res) => {
     const dbClientId = parseInt(req.params.dbClientId); // ID da linha na sua tabela client_connections
     // IMPORTANTE: Substitua com um order_sn REAL da sua loja para testar!
     // Você pode pegar um order_sn de um pedido COMPLETO ou PENDENTE do seu Seller Center da Shopee.
-    const testOrderSnList = ["2404098R48U37H"]; // <-- COLOQUE AQUI UM ORDER_SN VÁLIDO DA SUA LOJA
+    const testOrderSnList = ["250606RPNR8UXV"]; // <-- COLOQUE AQUI UM ORDER_SN VÁLIDO DA SUA LOJA
 
     if (isNaN(dbClientId)) {
         return res.status(400).json({ error: 'ID do cliente inválido. O ID deve ser um número inteiro.' });
