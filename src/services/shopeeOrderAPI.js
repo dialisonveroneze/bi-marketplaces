@@ -45,6 +45,7 @@ function buildSignedShopeeUrl(path, access_token, id, idType, additionalParams =
     const signature = generateShopeeSignature(path, partner_id, timestamp, access_token, shopIdForSignature);
 
 
+
     // --- CONSTRUÇÃO DA URL ---
     let url = `${SHOPEE_API_HOST_LIVE}${path}?` +
               `access_token=${access_token}` +
