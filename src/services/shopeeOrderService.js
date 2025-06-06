@@ -1,90 +1,175 @@
 // src/services/shopeeOrderService.js
 const axios = require('axios');
 const crypto = require('crypto');
-const supabase = require('../config/supabaseClient'); // Assumindo que você tem isso configurado
+const shopeeConfig = require('../config/shopeeConfig');
+const supabase = require('../config/supabase');
+const { getValidatedShopeeTokens } = require('./shopeeAuthService'); // Importa a função de validação de tokens
 
-const SHOPEE_PARTNER_ID = process.env.SHOPEE_PARTENER_ID; // CORRIGIDO: typo
-const SHOPEE_PARTNER_KEY = process.env.SHOPEE_PARTNER_KEY;
-// URL da API de Pedidos para o Brasil (ou conforme sua necessidade)
-const SHOPEE_ORDER_API_BASE_URL = 'https://openplatform.shopee.com.br/api/v2/order';
-
-/**
- * Gera a assinatura HMAC-SHA256 para requisições da Shopee API.
- * @param {string} path - O caminho da API (ex: "/api/v2/order/get_order_detail").
- * @param {number} timestamp - O timestamp da requisição.
- * @param {string} accessToken - O access token do shop.
- * @param {number} shopId - O ID do shop.
- * @returns {string} A assinatura gerada.
- */
-function generateSignature(path, timestamp, accessToken, shopId) {
-    const baseString = `${SHOPEE_PARTNER_ID}${path}${timestamp}${accessToken}${shopId}`;
-    const sign = crypto.createHmac('sha256', SHOPEE_PARTNER_KEY)
-                       .update(baseString)
-                       .digest('hex');
-    return sign;
-}
+const { SHOPEE_PARTNER_ID_LIVE, SHOPEE_API_KEY_LIVE, SHOPEE_API_HOST_LIVE } = shopeeConfig;
 
 /**
- * Busca detalhes de pedidos específicos da Shopee para um determinado shop.
- * @param {number} clientDbId - O ID interno do cliente no seu DB (da tabela client_connections).
- * @param {string[]} orderSnList - Uma lista de Order SNs (números de série dos pedidos) para buscar. Limit 1 a 50.
- * @returns {Promise<object>} Os detalhes dos pedidos.
+ * Busca pedidos da Shopee e os salva na tabela orders_raw_shopee.
+ * @param {string} id O ID da loja ou conta principal.
+ * @param {string} idType 'shop_id' ou 'main_account_id'.
+ * @param {string} orderStatus O status do pedido a ser buscado (ex: 'READY_TO_SHIP').
+ * @param {number} daysAgo Quantidade de dias para buscar pedidos (ex: 7 para 7 dias atrás).
+ * @returns {Promise<Array>} Lista de pedidos brutos obtidos.
  */
-async function getOrderDetail(clientDbId, orderSnList) {
+async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP', daysAgo = 7) {
+    console.log(`[shopeeOrderService] Buscando e salvando pedidos para ${idType}: ${id}`);
+
+    const { access_token, partner_id } = await getValidatedShopeeTokens(id, idType);
+
+    const ordersPath = "/api/v2/order/get_order_list";
+    const timestamp = Math.floor(Date.now() / 1000);
+    const timeFrom = Math.floor((Date.now() - daysAgo * 24 * 60 * 60 * 1000) / 1000);
+    const timeTo = timestamp;
+
+    const signatureQueryParams = {
+        cursor: '""',
+        order_status: orderStatus,
+        page_size: 20,
+        response_optional_fields: "order_status",
+        time_from: timeFrom,
+        time_range_field: 'create_time',
+        time_to: timeTo,
+    };
+
+    let sortedParamValuesForSignature = '';
+    const sortedKeys = Object.keys(signatureQueryParams).sort();
+    for (const key of sortedKeys) {
+        sortedParamValuesForSignature += signatureQueryParams[key];
+    }
+
+    let baseStringOrderList = `${partner_id}${ordersPath}${timestamp}${access_token}`;
+    baseStringOrderList += (idType === 'shop_id') ? `${Number(id)}` : `${Number(id)}`; // Adiciona shop_id ou main_account_id
+    baseStringOrderList += `${sortedParamValuesForSignature}`;
+
+    const signatureOrderList = crypto.createHmac('sha256', SHOPEE_API_KEY_LIVE)
+                                     .update(baseStringOrderList)
+                                     .digest('hex');
+
+    let ordersUrl = `${SHOPEE_API_HOST_LIVE}${ordersPath}?` +
+                        `access_token=${access_token}` +
+                        `&partner_id=${partner_id}` +
+                        `&sign=${signatureOrderList}` +
+                        `&timestamp=${timestamp}`;
+
+    ordersUrl += (idType === 'shop_id') ? `&shop_id=${Number(id)}` : `&main_account_id=${Number(id)}`;
+
+    ordersUrl += `&cursor=${encodeURIComponent('""')}` +
+                 `&order_status=${orderStatus}` +
+                 `&page_size=20` +
+                 `&response_optional_fields=order_status` +
+                 `&time_from=${timeFrom}` +
+                 `&time_range_field=create_time` +
+                 `&time_to=${timeTo}`;
+
     try {
-        // 1. Obter tokens e shop_id do banco de dados
-        const { data: connection, error: dbError } = await supabase
-            .from('client_connections')
-            .select('client_id, access_token, refresh_token') // client_id aqui é o shop_id da Shopee
-            .eq('id', clientDbId) // Assume que clientDbId é o 'id' da linha na sua tabela client_connections
-            .single();
+        const shopeeResponse = await axios.get(ordersUrl, {
+            headers: { 'Content-Type': 'application/json' }
+        });
 
-        if (dbError || !connection) {
-            console.error('Erro ao buscar conexão no DB para client_id:', clientDbId, dbError?.message);
-            throw new Error('Conexão da Shopee não encontrada no banco de dados.');
+        if (shopeeResponse.data.error) throw new Error(shopeeResponse.data.message || 'Erro desconhecido ao buscar pedidos.');
+
+        const orders = shopeeResponse.data.response.order_list;
+        console.log(`[shopeeOrderService] ${orders.length} pedidos encontrados para ${idType}: ${id}.`);
+
+        if (orders.length > 0) {
+            const ordersToInsert = orders.map(order => ({
+                order_sn: order.order_sn,
+                shop_id: Number(order.shop_id),
+                original_data: order,
+                retrieved_at: new Date().toISOString()
+            }));
+
+            const { error: insertError } = await supabase
+                .from('orders_raw_shopee')
+                .upsert(ordersToInsert, { onConflict: 'order_sn' });
+
+            if (insertError) {
+                console.error('❌ [shopeeOrderService] Erro ao salvar pedidos brutos no Supabase:', insertError.message);
+                throw new Error(`Erro ao salvar pedidos brutos no Supabase: ${insertError.message}`);
+            }
         }
-
-        const shopId = connection.client_id;
-        const accessToken = connection.access_token;
-        // const refreshToken = connection.refresh_token; // Não precisamos do refresh_token para esta API
-
-        // 2. Preparar parâmetros comuns da API
-        const path = '/api/v2/order/get_order_detail';
-        const timestamp = Math.floor(Date.now() / 1000); // Current Unix timestamp in seconds
-        const sign = generateSignature(path, timestamp, accessToken, shopId);
-
-        // 3. Preparar parâmetros específicos da requisição
-        if (!Array.isArray(orderSnList) || orderSnList.length === 0 || orderSnList.length > 50) {
-            throw new Error('orderSnList deve ser um array com 1 a 50 order_sn.');
-        }
-        const orderSnListParam = orderSnList.join(','); // Converte o array para string separada por vírgulas
-
-        // 4. Construir a URL completa
-        const requestUrl = `${SHOPEE_ORDER_API_BASE_URL}${path}?partner_id=${SHOPEE_PARTNER_ID}&timestamp=${timestamp}&access_token=${accessToken}&shop_id=${shopId}&sign=${sign}&order_sn_list=${orderSnListParam}`;
-
-        console.log(`--- [ShopeeOrderService:getOrderDetail] INÍCIO DA REQUISIÇÃO ---`);
-        console.log(`  URL de Requisição: ${requestUrl}`);
-
-        // 5. Fazer a requisição GET
-        const response = await axios.get(requestUrl);
-
-        console.log(`--- [ShopeeOrderService:getOrderDetail] RESPOSTA DA SHOPEE ---`);
-        console.log(`  Status HTTP: ${response.status}`);
-        console.log(`  Dados da Resposta (JSON recebido): ${JSON.stringify(response.data)}`);
-        console.log(`--- [ShopeeOrderService:getOrderDetail] FIM DA REQUISIÇÃO ---`);
-
-        if (response.data.error) {
-            console.error(`Erro da Shopee API: ${response.data.error} - ${response.data.message}`);
-            throw new Error(`Erro da Shopee API: ${response.data.message}`);
-        }
-
-        return response.data.response.order_list; // Retorna a lista de pedidos
+        return orders;
     } catch (error) {
-        console.error('❌ [ShopeeOrderService:getOrderDetail] Erro ao buscar detalhes do pedido da Shopee:', error.message);
-        throw error;
+        console.error('Erro em fetchAndSaveShopeeOrders:', error.response ? JSON.stringify(error.response.data) : error.message);
+        throw new Error(`Falha ao buscar pedidos da Shopee: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
     }
 }
 
+/**
+ * Normaliza pedidos brutos e os salva na tabela orders_detail_normalized.
+ * @param {number} clientId ID do cliente para associar os pedidos normalizados.
+ * @returns {Promise<number>} Número de pedidos normalizados.
+ */
+async function normalizeShopeeOrders(clientId = 1) {
+    console.log(`[shopeeOrderService] Iniciando normalização para client_id: ${clientId}`);
+
+    const { data: rawOrders, error: fetchRawError } = await supabase
+        .from('orders_raw_shopee')
+        .select('*');
+
+    if (fetchRawError) {
+        console.error('❌ [NORMALIZER] Erro ao buscar pedidos brutos:', fetchRawError.message);
+        throw new Error(`Erro ao buscar pedidos brutos para normalização: ${fetchRawError.message}`);
+    }
+
+    if (!rawOrders || rawOrders.length === 0) {
+        console.log('[NORMALIZER] Nenhuns pedidos brutos para normalizar.');
+        return 0;
+    }
+
+    const normalizedOrders = [];
+
+    for (const rawOrder of rawOrders) {
+        const originalData = rawOrder.original_data;
+        if (!originalData) continue;
+
+        try {
+            const totalAmount = parseFloat(originalData.total_amount) || 0;
+            const shippingFee = parseFloat(originalData.actual_shipping_fee) || 0;
+            const liquidValue = totalAmount - shippingFee;
+
+            const normalizedData = {
+                client_id: clientId,
+                platform_id: 1, // Assumindo 1 para Shopee
+                order_sn: originalData.order_sn,
+                order_status: originalData.order_status,
+                total_amount: totalAmount,
+                shipping_fee: shippingFee,
+                liquid_value: liquidValue,
+                currency: originalData.currency,
+                created_at: new Date(originalData.create_time * 1000).toISOString(),
+                updated_at: new Date(originalData.update_time * 1000).toISOString(),
+                recipient_name: originalData.recipient_address ? originalData.recipient_address.name : null,
+                recipient_phone: originalData.recipient_address ? originalData.recipient_address.phone : null,
+                shipping_carrier: originalData.shipping_carrier,
+                payment_method: originalData.payment_method,
+                buyer_username: originalData.buyer_username,
+                shop_id: originalData.shop_id,
+            };
+            normalizedOrders.push(normalizedData);
+        } catch (parseError) {
+            console.error(`❌ [NORMALIZER] Erro ao normalizar pedido SN: ${rawOrder.order_sn}. Erro: ${parseError.message}`);
+        }
+    }
+
+    if (normalizedOrders.length > 0) {
+        const { error: insertNormalizedError } = await supabase
+            .from('orders_detail_normalized')
+            .upsert(normalizedOrders, { onConflict: 'order_sn' });
+
+        if (insertNormalizedError) {
+            console.error('❌ [NORMALIZER] Erro ao salvar pedidos normalizados no Supabase:', insertNormalizedError.message);
+            throw new Error(`Erro ao salvar pedidos normalizados: ${insertNormalizedError.message}`);
+        }
+    }
+    return normalizedOrders.length;
+}
+
 module.exports = {
-    getOrderDetail
+    fetchAndSaveShopeeOrders,
+    normalizeShopeeOrders,
 };
