@@ -186,7 +186,7 @@ async function getValidatedShopeeTokens(id, idType) {
     console.log(`\n[AuthService:getValidatedShopeeTokens] Buscando tokens no Supabase para ${idType}: ${id}`);
     const { data: connectionData, error: fetchError } = await supabase
         .from('client_connections')
-        .select('access_token, refresh_token, token_expires_at, partner_id, shop_id, main_account_id')
+        .select('access_token, refresh_token, access_token_expires_at, partner_id, shop_id, main_account_id')
         .eq(idType, Number(id))
         .single();
 
@@ -197,7 +197,7 @@ async function getValidatedShopeeTokens(id, idType) {
 
     let accessToken = connectionData.access_token;
     let refreshToken = connectionData.refresh_token;
-    const expiresAt = new Date(connectionData.token_expires_at); // Convertendo para objeto Date
+    const expiresAt = new Date(connectionData.access_token_expires_at); // Convertendo para objeto Date
     const now = new Date();
     const partnerId = connectionData.partner_id;
 
@@ -226,7 +226,7 @@ async function getValidatedShopeeTokens(id, idType) {
                     [idType]: Number(id), // Usa o ID da loja ou conta principal para o upsert
                     access_token: accessToken,
                     refresh_token: refreshToken,
-                    token_expires_at: newExpiresAt.toISOString(), // Salva em formato ISO 8601
+                    access_token_expires_at: newExpiresAt.toISOString(), // Salva em formato ISO 8601
                     last_updated_at: new Date().toISOString()
                 }, { onConflict: idType }); // Conflito pelo shop_id ou main_account_id
 
