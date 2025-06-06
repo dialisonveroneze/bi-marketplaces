@@ -37,7 +37,7 @@ app.get('/test-shopee-orders/:clientId', async (req, res) => {
 
     console.log(`Recebida requisição para testar busca de pedidos para client_id: ${clientId}, shop_id: ${id}`);
 
-    if (!id || id === "SEU_SHOP_ID_AQUI") { // Adicionei uma verificação para o shop_id
+    if (!id || id === "316070154") { // Adicionei uma verificação para o shop_id
         return res.status(400).json({ success: false, message: "Erro: 'shopIdToTest' não configurado ou inválido na rota /test-shopee-orders." });
     }
 
