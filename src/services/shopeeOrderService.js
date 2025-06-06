@@ -82,7 +82,7 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
         const ordersToInsert = detailedOrders.map(order => ({
             order_id: order.order_sn,
             shop_id: Number(connectionInfo.shop_id || id),
-            original_data: order,
+           // original_data: order,
             retrieved_at: new Date().toISOString()
         }));
 
