@@ -84,7 +84,7 @@ async function getShopeeOrderList(connectionInfo, params) {
         );
         const responseData = await sendShopeeGetRequest(url);
         console.log(`[ShopeeOrderAPI:getShopeeOrderList] FIM - Dados de pedidos recebidos com sucesso.`);
-        return responseData.data;//response; // Retorna apenas o objeto 'response'
+        return responseData.response; // Retorna apenas o objeto 'response'
     } catch (error) {
         console.error(`❌ [ShopeeOrderAPI:getShopeeOrderList] Erro ao obter lista de pedidos da Shopee: ${error.message}`);
         throw error;

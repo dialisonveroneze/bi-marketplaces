@@ -84,7 +84,8 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
                 }
                 console.log(`[ShopeeOrderService] Etapa 3 Concluída: Resposta de getShopeeOrderList recebida.`);
 
-                const ordersSummary = shopeeResponseList.order_list ? shopeeResponseList.order_list : [];
+                //const ordersSummary = shopeeResponseList.order_list ? shopeeResponseList.order_list : [];
+				const ordersSummary = (shopeeResponseList && shopeeResponseList.order_list) ? shopeeResponseList.order_list : [];
                 console.log(`[ShopeeOrderService] Etapa 4: ${ordersSummary.length} pedidos encontrados para ${idType}: ${id} nesta janela.`);
 
                 if (ordersSummary.length === 0) {
