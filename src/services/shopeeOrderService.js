@@ -164,10 +164,16 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
             } // Fim do while (hasMore) para paginação interna
 
             // Prepara para a próxima janela de 15 dias
-            currentWindowStart.setDate(currentWindowEnd.getDate() + 1); // Move para o dia seguinte ao fim da janela atual
 			
 			console.log(`[ShopeeOrderService] Próxima janela de data começará em: ${currentWindowStart.toISOString().split('T')[0]} (após ${currentWindowEnd.toISOString().split('T')[0]})`);
             console.log(`[ShopeeOrderService] Próxima janela de data começará em: ${currentWindowStart.toISOString().split('T')[0]}`);
+
+			// CORREÇÃO AQUI 👇
+			currentWindowStart = new Date(currentWindowEnd);
+			currentWindowStart.setDate(currentWindowStart.getDate() + 1);
+            currentWindowStart.setDate(currentWindowEnd.getDate() + 1); // Move para o dia seguinte ao fim da janela atual
+			
+
         } // Fim do while (currentWindowStart <= endOfMonth) para paginação por data
         // --- LÓGICA DE PAGINAÇÃO POR DATA: FIM ---
 
