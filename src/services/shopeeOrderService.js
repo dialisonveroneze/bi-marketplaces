@@ -132,7 +132,7 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
                     order_id: order.order_sn,
                     client_id: id, // Usando o 'id' passado para a função, que é o shop_id
                     received_at: new Date().toISOString(),
-                    api_name: "Shopee", // Nome da API fixo para Shopee
+                    api_name: "shopee.v2.order.get_order_list", // Nome da API fixo para Shopee
                     raw_data: order,
                 }));
 
