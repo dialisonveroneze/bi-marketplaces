@@ -27,26 +27,28 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1); // Primeiro dia do mês atual
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Último dia do mês atual
 
-
         let currentWindowStart = new Date(startOfMonth); // Começa no primeiro dia do mês
 
-       while (currentWindowStart <= endOfMonth) {
-		let currentWindowEnd = new Date(currentWindowStart);
-		currentWindowEnd.setDate(currentWindowStart.getDate() + 14); // janela de 15 dias (inclusiva)
+        while (currentWindowStart <= endOfMonth) {
+            let currentWindowEnd = new Date(currentWindowStart);
+            // Define o fim da janela de 15 dias, mas não mais que o fim do mês
+            currentWindowEnd.setDate(currentWindowStart.getDate() + 14); // 15 dias de intervalo (inclusive o dia de início)
 
-		if (currentWindowEnd > endOfMonth) {
-			currentWindowEnd = new Date(endOfMonth);
-		}
+            if (currentWindowEnd > endOfMonth) {
+                currentWindowEnd = new Date(endOfMonth); // Garante que não exceda o fim do mês
+            }
 
-		console.log(`\n--- [ShopeeOrderService] Processando janela de data: ${currentWindowStart.toISOString().split('T')[0]} a ${currentWindowEnd.toISOString().split('T')[0]} ---`);
+            const timeFrom = Math.floor(currentWindowStart.getTime() / 1000);
+            const timeTo = Math.floor(currentWindowEnd.getTime() / 1000);
+			console.log(`\n--- [ShopeeOrderService] Processando janela de data: ${currentWindowStart.toISOString().split('T')[0]} a ${currentWindowEnd.toISOString().split('T')[0]} ---`);
 
-		// ... sua lógica de chamadas à API aqui ...
+			//... lógica interna para CHAMAR A API com timeFrom e timeTo ...
 
-		// Avança 15 dias para próxima janela
-		currentWindowStart.setDate(currentWindowStart.getDate() + 15);
+			currentWindowStart.setDate(currentWindowEnd.getDate() + 1); // Avança para a próxima janela
+			
+			
+            //console.log(`\n--- [ShopeeOrderService] Processando janela de data: ${currentWindowStart.toISOString().split('T')[0]} a ${currentWindowEnd.toISOString().split('T')[0]} ---`);
 
-		console.log(`[ShopeeOrderService] Próxima janela de data começará em: ${currentWindowStart.toISOString().split('T')[0]}`);
-	}
             let cursor = ""; // Cursor para paginação interna de cada janela de 15 dias
             let hasMore = true; // Flag para controlar a paginação dentro da janela
 
