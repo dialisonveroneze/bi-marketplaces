@@ -55,7 +55,7 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
                 const orderListQueryParams = {
                     cursor: cursor,
                     order_status: orderStatus,
-                    page_size: 20, // Pode ajustar, mas 20 é um bom valor padrão.
+                    page_size: 100, // Pode ajustar, mas 20 é um bom valor padrão.
                     response_optional_fields: "order_status",
                     time_from: timeFrom,
                     time_range_field: 'create_time',
