@@ -40,8 +40,13 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
 
             const timeFrom = Math.floor(currentWindowStart.getTime() / 1000);
             const timeTo = Math.floor(currentWindowEnd.getTime() / 1000);
+			console.log(`\n--- [ShopeeOrderService] Processando janela de data: ${currentWindowStart.toISOString().split('T')[0]} a ${currentWindowEnd.toISOString().split('T')[0]} ---`);
 
-            console.log(`\n--- [ShopeeOrderService] Processando janela de data: ${currentWindowStart.toISOString().split('T')[0]} a ${currentWindowEnd.toISOString().split('T')[0]} ---`);
+			//... lógica interna para CHAMAR A API com timeFrom e timeTo ...
+
+			currentWindowStart.setDate(currentWindowEnd.getDate() + 1); // Avança para a próxima janela
+			
+            //console.log(`\n--- [ShopeeOrderService] Processando janela de data: ${currentWindowStart.toISOString().split('T')[0]} a ${currentWindowEnd.toISOString().split('T')[0]} ---`);
 
             let cursor = ""; // Cursor para paginação interna de cada janela de 15 dias
             let hasMore = true; // Flag para controlar a paginação dentro da janela
@@ -157,12 +162,17 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
 
             // Prepara para a próxima janela de 15 dias
             currentWindowStart.setDate(currentWindowEnd.getDate() + 1); // Move para o dia seguinte ao fim da janela atual
+			
+			console.log(`[ShopeeOrderService] Próxima janela de data começará em: ${currentWindowStart.toISOString().split('T')[0]} (após ${currentWindowEnd.toISOString().split('T')[0]})`);
             console.log(`[ShopeeOrderService] Próxima janela de data começará em: ${currentWindowStart.toISOString().split('T')[0]}`);
         } // Fim do while (currentWindowStart <= endOfMonth) para paginação por data
         // --- LÓGICA DE PAGINAÇÃO POR DATA: FIM ---
 
+
         console.log(`[ShopeeOrderService] Finalizado o processamento de todas as janelas de data. Total de pedidos detalhados obtidos: ${allFetchedDetailedOrders.length}.`);
         return allFetchedDetailedOrders; // Retorna todos os pedidos acumulados
+        //console.log(`[ShopeeOrderService] Finalizado o processamento de todas as janelas de data. Total de pedidos detalhados obtidos: ${allFetchedDetailedOrders.length}.`);
+        //return allFetchedDetailedOrders; // Retorna todos os pedidos acumulados
 
     } catch (error) {
         console.error('❌ Erro final em fetchAndSaveShopeeOrders:', error.message);
