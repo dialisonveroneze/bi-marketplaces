@@ -26,6 +26,7 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1); // Primeiro dia do mês atual
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Último dia do mês atual
+        console.log(`[ShopeeOrderService] Processando janela de data: primeiro dia do mes: ${startOfMonth} ultimo dia do mes: ${endOfMonth}` );
 
         let currentWindowStart = new Date(startOfMonth); // Começa no primeiro dia do mês
 
