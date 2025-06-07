@@ -46,7 +46,8 @@ async function fetchAndSaveShopeeOrders(id, idType, orderStatus = 'READY_TO_SHIP
 
 			currentWindowStart.setDate(currentWindowEnd.getDate() + 1); // Avança para a próxima janela
 			
-			
+			console.log(`[ShopeeOrderService] Próxima janela de data começará em: ${currentWindowStart.toISOString().split('T')[0]}`);
+
             //console.log(`\n--- [ShopeeOrderService] Processando janela de data: ${currentWindowStart.toISOString().split('T')[0]} a ${currentWindowEnd.toISOString().split('T')[0]} ---`);
 
             let cursor = ""; // Cursor para paginação interna de cada janela de 15 dias
